@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Medical Dashboard</title>
+<style>
+:root{
+--navy:#061A45;--green:#00765B;--gold:#BA7700;--purple:#3C167D;--red:#9B111E;
+--bg:#F5F7FA;--card:#FFFFFF;--text:#1F2937;--line:#D1D5DB;
+}
+*{box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:var(--bg);color:var(--text);}
+header{background:var(--navy);color:white;padding:18px;position:sticky;top:0;z-index:100;}
+h1{margin:0;text-align:center;font-size:22px;}
+.subtitle{text-align:center;font-size:12px;opacity:.85;margin-top:4px;}
+.tabs{display:flex;overflow-x:auto;gap:8px;margin-top:12px;padding-bottom:2px;}
+.tab{background:rgba(255,255,255,.15);padding:9px 14px;border-radius:999px;font-weight:700;white-space:nowrap;cursor:pointer;font-size:13px;}
+.tab.active{background:white;color:var(--navy);}
+main{padding:14px;padding-bottom:110px;}
+.section{display:none;}.section.active{display:block;}
+.band{padding:10px 14px;border-radius:14px 14px 0 0;font-weight:800;color:white;margin-top:14px;font-size:14px;}
+.green{background:var(--green);}.gold{background:var(--gold);}.purple{background:var(--purple);}.red{background:var(--red);}.navy-band{background:var(--navy);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;}
+.tile{background:white;border-radius:18px;padding:16px;text-align:center;border:1px solid var(--line);}
+.tile strong{font-size:28px;display:block;}.tile span{font-size:12px;}
+label{font-size:12px;font-weight:700;display:block;margin-bottom:4px;color:#6B7280;}
+input,textarea,select{width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);font-size:15px;font-family:inherit;background:white;}
+textarea{min-height:70px;resize:vertical;}
+.grid{display:grid;grid-template-columns:1fr;gap:10px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.bottom{position:fixed;bottom:0;left:0;right:0;padding:12px;background:white;border-top:1px solid var(--line);display:flex;gap:10px;}
+.bottom button{flex:1;padding:13px;border:none;border-radius:14px;font-weight:800;color:white;font-size:15px;cursor:pointer;}
+.btn-green{background:var(--green);}
+.btn-purple{background:var(--purple);}
+.small{font-size:13px;color:#6B7280;}
+.card-actions{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);}
+.btn-edit{flex:1;padding:9px;background:#EEF2FF;color:var(--navy);border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-delete{flex:1;padding:9px;background:#FEE2E2;color:var(--red);border:none;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;}
+.priority-high{color:var(--red);font-weight:700;}
+.priority-medium{color:var(--gold);font-weight:700;}
+.priority-low{color:var(--green);font-weight:700;}
+.status-out{color:var(--red);font-weight:700;}
+.status-ok{color:var(--green);font-weight:700;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;}
+.modal-overlay.open{display:flex;}
+.modal{background:white;border-radius:24px 24px 0 0;width:100%;max-height:90vh;overflow-y:auto;padding:20px;padding-bottom:40px;animation:slideUp .25s ease;}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+.modal-handle{width:40px;height:4px;background:#D1D5DB;border-radius:2px;margin:0 auto 16px;}
+.modal h2{font-size:18px;font-weight:800;margin:0 0 16px;}
+.modal-actions{display:flex;gap:10px;margin-top:16px;}
+.btn-save{flex:1;padding:13px;background:var(--green);color:white;border:none;border-radius:14px;font-weight:800;font-size:15px;cursor:pointer;}
+.btn-cancel{padding:13px 18px;background:#F3F4F6;color:var(--text);border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;}
+.form-group{margin-bottom:12px;}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-red{background:#FEE2E2;color:var(--red);}
+.badge-green{background:#D1FAE5;color:var(--green);}
+.badge-gold{background:#FEF3C7;color:var(--gold);}
+.badge-purple{background:#EDE9FE;color:var(--purple);}
+.task-done{text-decoration:line-through;opacity:.5;}
+.appt-date{font-size:22px;font-weight:800;color:var(--navy);}
+.attention-item{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);}
+.attention-item:last-child{border-bottom:none;}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🩺 MY MEDICAL DASHBOARD</h1>
+<div class="subtitle">Personal Health Organizer — optimized for phone & computer</div>
+<div class="tabs">
+<div class="tab active" data-tab="dashboard">📊 Dashboard</div>
+<div class="tab" data-tab="providers">👩🏽‍⚕️ Care Team</div>
+<div class="tab" data-tab="meds">💊 Medications</div>
+<div class="tab" data-tab="appointments">📅 Appointments</div>
+<div class="tab" data-tab="tasks">✅ Tasks</div>
+</div>
+</header>
+
+<main>
+<section id="dashboard" class="section active"></section>
+<section id="providers" class="section"></section>
+<section id="meds" class="section"></section>
+<section id="appointments" class="section"></section>
+<section id="tasks" class="section"></section>
+</main>
+
+<div class="bottom">
+<button class="btn-green" onclick="addItem()">➕ Add</button>
+<button class="btn-purple" onclick="exportData()">⬇️ Backup</button>
+</div>
+
+<!-- PROVIDER MODAL -->
+<div class="modal-overlay" id="providerModal">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <h2 id="providerModalTitle">Add Doctor</h2>
+  <input type="hidden" id="providerIdx" value="-1">
+  <div class="form-group"><label>Doctor Name *</label><input id="p_name" placeholder="Dr. Jane Smith"/></div>
+  <div class="grid2">
+    <div class="form-group"><label>Specialty</label><input id="p_specialty" placeholder="Cardiologist"/></div>
+    <div class="form-group"><label>Practice</label><input id="p_practice" placeholder="Heart Center"/></div>
+  </div>
+  <div class="grid2">
+    <div class="form-group"><label>Phone</label><input id="p_phone" type="tel" placeholder="(555) 000-0000"/></div>
+    <div class="form-group"><label>Fax</label><input id="p_fax" type="tel" placeholder="(555) 000-0001"/></div>
+  </div>
+  <div class="form-group"><label>Address</label><input id="p_address" placeholder="123 Main St, City, ST"/></div>
+  <div class="form-group"><label>Portal URL</label><input id="p_portal" placeholder="mychart.hospital.org"/></div>
+  <div class="grid2">
+    <div class="form-group"><label>Username</label><input id="p_username" placeholder="username"/></div>
+    <div class="form-group"><label>Password Hint</label><input id="p_password_hint" placeholder="hint only"/></div>
+  </div>
+  <div class="form-group"><label>Notes</label><textarea id="p_notes" placeholder="Referrals, next appt, anything else..."></textarea></div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal('providerModal')">Cancel</button>
+    <button class="btn-save" onclick="saveProvider()">Save</button>
+  </div>
+</div>
+</div>
+
+<!-- MED MODAL -->
+<div class="modal-overlay" id="medModal">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <h2 id="medModalTitle">Add Medication</h2>
+  <input type="hidden" id="medIdx" value="-1">
+  <div class="form-group"><label>Medication Name *</label><input id="m_name" placeholder="Lisinopril"/></div>
+  <div class="grid2">
+    <div class="form-group"><label>Dose</label><input id="m_dose" placeholder="10mg"/></div>
+    <div class="form-group"><label>Frequency</label><input id="m_frequency" placeholder="Once daily"/></div>
+  </div>
+  <div class="form-group"><label>Prescribing Doctor</label><input id="m_doctor" placeholder="Dr. Smith"/></div>
+  <div class="form-group"><label>Pharmacy</label><input id="m_pharmacy" placeholder="CVS Pharmacy"/></div>
+  <div class="form-group"><label>Refill Phone</label><input id="m_refill_phone" type="tel" placeholder="(555) 000-0000"/></div>
+  <div class="grid2">
+    <div class="form-group"><label>Refill Status</label>
+      <select id="m_refill_status">
+        <option>Active</option>
+        <option>Refill Requested</option>
+        <option>Needs Refill</option>
+        <option>Unknown</option>
+        <option>Discontinued</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Supply Status</label>
+      <select id="m_supply_status">
+        <option></option>
+        <option>Enough currently</option>
+        <option>Running low</option>
+        <option>OUT</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-group"><label>Notes</label><textarea id="m_notes" placeholder="Take with food, avoid grapefruit..."></textarea></div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal('medModal')">Cancel</button>
+    <button class="btn-save" onclick="saveMed()">Save</button>
+  </div>
+</div>
+</div>
+
+<!-- APPOINTMENT MODAL -->
+<div class="modal-overlay" id="apptModal">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <h2 id="apptModalTitle">Add Appointment</h2>
+  <input type="hidden" id="apptIdx" value="-1">
+  <div class="grid2">
+    <div class="form-group"><label>Date *</label><input id="a_date" type="date"/></div>
+    <div class="form-group"><label>Time</label><input id="a_time" type="time"/></div>
+  </div>
+  <div class="form-group"><label>Doctor / Specialist *</label><input id="a_doctor" placeholder="Dr. Smith"/></div>
+  <div class="form-group"><label>Purpose of Visit</label><input id="a_purpose" placeholder="Follow-up, checkup..."/></div>
+  <div class="form-group"><label>Location / Office</label><input id="a_location" placeholder="Heart Center — Suite 200"/></div>
+  <div class="form-group"><label>Insurance / Co-pay</label><input id="a_insurance" placeholder="Aetna · $30 co-pay"/></div>
+  <div class="form-group"><label>Prep Requirements</label><textarea id="a_prep" placeholder="Fast 8 hrs, bring bloodwork, no ibuprofen..."></textarea></div>
+  <div class="form-group"><label>Notes / Questions to Ask</label><textarea id="a_notes" placeholder="Questions for the doctor..."></textarea></div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal('apptModal')">Cancel</button>
+    <button class="btn-save" onclick="saveAppt()">Save</button>
+  </div>
+</div>
+</div>
+
+<!-- TASK MODAL -->
+<div class="modal-overlay" id="taskModal">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <h2 id="taskModalTitle">Add Task</h2>
+  <input type="hidden" id="taskIdx" value="-1">
+  <div class="form-group"><label>Task *</label><textarea id="t_task" placeholder="What needs to be done?"></textarea></div>
+  <div class="form-group"><label>Priority</label>
+    <select id="t_priority">
+      <option>High</option>
+      <option>Medium</option>
+      <option>Low</option>
+    </select>
+  </div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal('taskModal')">Cancel</button>
+    <button class="btn-save" onclick="saveTask()">Save</button>
+  </div>
+</div>
+</div>
+
+<script>
+// Load data
+let data = JSON.parse(localStorage.getItem('medDashData') || 'null') || {"providers":[{"name":"Dr. Hudson","specialty":"Rheumatology","phone":"","fax":"","address":"","practice":"","portal":"","username":"","password_hint":"","notes":"Manages inflammation / hydroxychloroquine"},{"name":"Ms. Jackson","specialty":"Primary Care","phone":"","fax":"","address":"","practice":"","portal":"","username":"","password_hint":"","notes":"Current PCP"},{"name":"Dr. Hamilton","specialty":"Unknown","phone":"","fax":"","address":"","practice":"","portal":"","username":"","password_hint":"","notes":"Prescribes naltrexone"},{"name":"Dr. Okareke","specialty":"Previous PCP","phone":"","fax":"","address":"","practice":"","portal":"","username":"","password_hint":"","notes":"Lamotrigine refill requested"},{"name":"Dr. Monique Montenegro","specialty":"Neurology","phone":"","fax":"","address":"Minnesota","practice":"","portal":"","username":"","password_hint":"","notes":"Prescribed oxcarbazepine"},{"name":"Unknown New Neurologist","specialty":"Neurology","phone":"","fax":"","address":"","practice":"","portal":"","username":"","password_hint":"","notes":"Need provider information"}],"medications":[{"name":"Hydroxychloroquine","dose":"","frequency":"","doctor":"Dr. Hudson","pharmacy":"","refill_phone":"","last_filled":"","refill_status":"Active","supply_status":"","notes":""},{"name":"Lamotrigine","dose":"25mg","frequency":"","doctor":"Dr. Okareke","pharmacy":"","refill_phone":"","last_filled":"","refill_status":"Refill Requested","supply_status":"OUT","notes":"Currently out"},{"name":"Lamotrigine","dose":"100mg","frequency":"","doctor":"Dr. Okareke","pharmacy":"","refill_phone":"","last_filled":"","refill_status":"Refill Requested","supply_status":"OUT","notes":"Currently out"},{"name":"Oxcarbazepine","dose":"","frequency":"","doctor":"Dr. Monique Montenegro","pharmacy":"","refill_phone":"","last_filled":"","refill_status":"Active","supply_status":"Enough currently","notes":""},{"name":"Naltrexone","dose":"","frequency":"","doctor":"Dr. Hamilton","pharmacy":"","refill_phone":"","last_filled":"","refill_status":"Unknown","supply_status":"","notes":""}],"appointments":[],"tasks":[{"task":"Confirm lamotrigine 25mg refill approval","priority":"High","done":false},{"task":"Confirm lamotrigine 100mg refill approval","priority":"High","done":false},{"task":"Find new neurologist contact information","priority":"Medium","done":false},{"task":"Add facility names and phone numbers","priority":"Medium","done":false}]};
+
+let currentTab = "dashboard";
+
+function save(){ localStorage.setItem('medDashData', JSON.stringify(data)); }
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function fmtDate(d){ if(!d) return ''; const dt = new Date(d+'T12:00:00'); return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+
+function daysUntil(d){ if(!d) return 9999; const t=new Date(); t.setHours(0,0,0,0); return Math.round((new Date(d+'T12:00:00')-t)/86400000); }
+
+// TABS
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.getElementById(tab.dataset.tab).classList.add("active");
+    currentTab = tab.dataset.tab;
+    render();
+  }
+});
+
+// RENDER ALL
+function render(){
+  renderDashboard();
+  renderProviders();
+  renderMeds();
+  renderAppointments();
+  renderTasks();
+}
+
+function renderDashboard(){
+  const urgent = data.tasks.filter(t=>!t.done && t.priority==='High');
+  const upcoming = data.appointments.filter(a=>a.date && daysUntil(a.date)>=0).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+  const outMeds = data.medications.filter(m=>m.supply_status==='OUT');
+
+  let html = `<div class="band green">⚡ QUICK SUMMARY</div>
+  <div class="summary">
+    <div class="tile"><strong>${data.providers.length}</strong><span>👩🏽‍⚕️ Doctors</span></div>
+    <div class="tile"><strong>${data.medications.length}</strong><span>💊 Medications</span></div>
+    <div class="tile"><strong>${data.appointments.filter(a=>a.date&&daysUntil(a.date)>=0).length}</strong><span>📅 Upcoming</span></div>
+    <div class="tile"><strong>${data.tasks.filter(t=>!t.done).length}</strong><span>✅ Open Tasks</span></div>
+  </div>`;
+
+  if(urgent.length || outMeds.length){
+    html += `<div class="band red">🚨 NEEDS ATTENTION</div><div class="card">`;
+    outMeds.forEach(m=>{ html+=`<div class="attention-item"><span>💊</span><div><b>${esc(m.name)} ${esc(m.dose)}</b> — <span class="status-out">OUT OF STOCK</span></div></div>`; });
+    urgent.forEach(t=>{ html+=`<div class="attention-item"><span>🔴</span><div><b>High Priority:</b> ${esc(t.task)}</div></div>`; });
+    html += `</div>`;
+  }
+
+  if(upcoming.length){
+    html += `<div class="band gold">📅 NEXT APPOINTMENTS</div>`;
+    upcoming.forEach(a=>{
+      const du = daysUntil(a.date);
+      const label = du===0?'Today':du===1?'Tomorrow':`In ${du} days`;
+      html += `<div class="card"><div class="appt-date">${fmtDate(a.date)}</div>
+      <div><b>${esc(a.doctor)}</b> ${a.purpose?'— '+esc(a.purpose):''}</div>
+      <div class="small">${label}${a.location?' · '+esc(a.location):''}</div>
+      ${a.prep?`<div style="margin-top:8px;padding:8px;background:#FEF3C7;border-radius:10px;font-size:13px;"><b>Prep:</b> ${esc(a.prep)}</div>`:''}
+      </div>`;
+    });
+  }
+
+  html += `<div class="band purple">📘 HOW TO USE</div>
+  <div class="card">
+    <p>👩🏽‍⚕️ <b>Care Team</b> — Add doctors, phone numbers, fax, and portal info.</p>
+    <p>💊 <b>Medications</b> — Track refills and prescribing doctors.</p>
+    <p>📅 <b>Appointments</b> — Add upcoming visits with prep requirements.</p>
+    <p>✅ <b>Tasks</b> — Track follow-ups and things to do.</p>
+  </div>`;
+
+  document.getElementById("dashboard").innerHTML = html;
+}
+
+function renderProviders(){
+  let html = '<div class="band green">👩🏽‍⚕️ CARE TEAM</div>';
+  if(!data.providers.length){ html+='<div class="card"><p>No doctors added yet. Tap ➕ Add to get started.</p></div>'; }
+  data.providers.forEach((p,i)=>{
+    html+=`<div class="card">
+    <h3 style="margin:0 0 4px">👩🏽‍⚕️ ${esc(p.name)}</h3>
+    <div class="small">${esc(p.specialty)}${p.practice?' · '+esc(p.practice):''}</div>
+    ${p.phone?`<div style="margin-top:8px;font-size:14px;">📞 <a href="tel:${esc(p.phone)}" style="color:var(--navy);font-weight:600">${esc(p.phone)}</a></div>`:''}
+    ${p.fax?`<div style="font-size:14px;">📠 Fax: ${esc(p.fax)}</div>`:''}
+    ${p.address?`<div style="font-size:13px;color:#6B7280;">📍 ${esc(p.address)}</div>`:''}
+    ${p.portal?`<div style="margin-top:6px;padding:8px;background:#EDE9FE;border-radius:10px;font-size:13px;"><b>Portal:</b> ${esc(p.portal)}${p.username?'<br><b>User:</b> '+esc(p.username):''}${p.password_hint?'<br><b>Hint:</b> '+esc(p.password_hint):''}</div>`:''}
+    ${p.notes?`<div style="margin-top:6px;font-size:13px;color:#6B7280;">${esc(p.notes)}</div>`:''}
+    <div class="card-actions">
+      <button class="btn-edit" onclick="editProvider(${i})">✏️ Edit</button>
+      <button class="btn-delete" onclick="deleteProvider(${i})">🗑️ Delete</button>
+    </div></div>`;
+  });
+  document.getElementById("providers").innerHTML = html;
+}
+
+function renderMeds(){
+  let html = '<div class="band green">💊 MEDICATIONS</div>';
+  if(!data.medications.length){ html+='<div class="card"><p>No medications added yet. Tap ➕ Add to get started.</p></div>'; }
+  data.medications.forEach((m,i)=>{
+    const isOut = m.supply_status==='OUT';
+    html+=`<div class="card">
+    <h3 style="margin:0 0 4px">💊 ${esc(m.name)}${m.dose?' '+esc(m.dose):''}</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+      <span class="badge ${isOut?'badge-red':m.refill_status==='Active'?'badge-green':'badge-gold'}">${esc(m.refill_status)}</span>
+      ${m.supply_status?`<span class="badge ${isOut?'badge-red':'badge-green'}">${esc(m.supply_status)}</span>`:''}
+    </div>
+    ${m.frequency?`<div class="small">⏰ ${esc(m.frequency)}</div>`:''}
+    ${m.doctor?`<div class="small">👩🏽‍⚕️ ${esc(m.doctor)}</div>`:''}
+    ${m.pharmacy?`<div class="small">🏪 ${esc(m.pharmacy)}</div>`:''}
+    ${m.refill_phone?`<div class="small">📞 <a href="tel:${esc(m.refill_phone)}" style="color:var(--navy);font-weight:600">${esc(m.refill_phone)}</a></div>`:''}
+    ${m.notes?`<div style="margin-top:6px;font-size:13px;color:#6B7280;">${esc(m.notes)}</div>`:''}
+    <div class="card-actions">
+      <button class="btn-edit" onclick="editMed(${i})">✏️ Edit</button>
+      <button class="btn-delete" onclick="deleteMed(${i})">🗑️ Delete</button>
+    </div></div>`;
+  });
+  document.getElementById("meds").innerHTML = html;
+}
+
+function renderAppointments(){
+  const sorted = [...data.appointments].map((a,i)=>({...a,_i:i})).sort((a,b)=>(!a.date?1:!b.date?-1:a.date.localeCompare(b.date)));
+  let html = '<div class="band gold">📅 APPOINTMENTS</div>';
+  if(!data.appointments.length){ html+='<div class="card"><p>No appointments yet. Tap ➕ Add to get started.</p></div>'; }
+  sorted.forEach(a=>{
+    const du = daysUntil(a.date);
+    const label = du===0?'🔴 Today':du===1?'🟡 Tomorrow':du>0?`In ${du} days`:`${Math.abs(du)}d ago`;
+    html+=`<div class="card">
+    <div class="appt-date">${fmtDate(a.date)||'No date set'}</div>
+    <div style="font-size:13px;color:#6B7280;margin-bottom:4px">${label}${a.time?' · '+a.time:''}</div>
+    <div><b>${esc(a.doctor||'TBD')}</b>${a.purpose?' — '+esc(a.purpose):''}</div>
+    ${a.location?`<div class="small">📍 ${esc(a.location)}</div>`:''}
+    ${a.insurance?`<div class="small">💳 ${esc(a.insurance)}</div>`:''}
+    ${a.prep?`<div style="margin-top:8px;padding:10px;background:#FEF3C7;border-radius:10px;font-size:13px;"><b>📋 Prep Required:</b><br>${esc(a.prep)}</div>`:''}
+    ${a.notes?`<div style="margin-top:6px;font-size:13px;color:#6B7280;font-style:italic">${esc(a.notes)}</div>`:''}
+    <div class="card-actions">
+      <button class="btn-edit" onclick="editAppt(${a._i})">✏️ Edit</button>
+      <button class="btn-delete" onclick="deleteAppt(${a._i})">🗑️ Delete</button>
+    </div></div>`;
+  });
+  document.getElementById("appointments").innerHTML = html;
+}
+
+function renderTasks(){
+  const open = data.tasks.filter(t=>!t.done);
+  const done = data.tasks.filter(t=>t.done);
+  let html = '<div class="band purple">✅ TASKS & FOLLOW UPS</div>';
+  if(!data.tasks.length){ html+='<div class="card"><p>No tasks yet. Tap ➕ Add to get started.</p></div>'; }
+  open.forEach((t,i)=>{
+    const idx = data.tasks.indexOf(t);
+    html+=`<div class="card">
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      <input type="checkbox" style="width:20px;height:20px;margin-top:2px;flex-shrink:0" onchange="toggleTask(${idx})">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:15px">${esc(t.task)}</div>
+        <div class="small priority-${t.priority.toLowerCase()}">${t.priority} Priority</div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="btn-edit" onclick="editTask(${idx})">✏️ Edit</button>
+      <button class="btn-delete" onclick="deleteTask(${idx})">🗑️ Delete</button>
+    </div></div>`;
+  });
+  if(done.length){
+    html+=`<div style="font-size:12px;font-weight:700;color:#9CA3AF;margin:12px 0 6px;text-transform:uppercase;letter-spacing:.05em">Completed (${done.length})</div>`;
+    done.forEach(t=>{
+      const idx = data.tasks.indexOf(t);
+      html+=`<div class="card" style="opacity:.6">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <input type="checkbox" checked style="width:20px;height:20px;margin-top:2px;flex-shrink:0" onchange="toggleTask(${idx})">
+        <div class="task-done" style="flex:1;font-size:15px">${esc(t.task)}</div>
+      </div>
+      <div class="card-actions">
+        <button class="btn-delete" onclick="deleteTask(${idx})">🗑️ Delete</button>
+      </div></div>`;
+    });
+  }
+  document.getElementById("tasks").innerHTML = html;
+}
+
+// MODAL HELPERS
+function openModal(id){ document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+
+// ADD ITEM — routes to correct modal
+function addItem(){
+  if(currentTab==='providers'){ document.getElementById('providerIdx').value=-1; document.getElementById('providerModalTitle').textContent='Add Doctor'; clearForm('p_name,p_specialty,p_practice,p_phone,p_fax,p_address,p_portal,p_username,p_password_hint,p_notes'); openModal('providerModal'); }
+  else if(currentTab==='meds'){ document.getElementById('medIdx').value=-1; document.getElementById('medModalTitle').textContent='Add Medication'; clearForm('m_name,m_dose,m_frequency,m_doctor,m_pharmacy,m_refill_phone,m_notes'); document.getElementById('m_refill_status').value='Active'; document.getElementById('m_supply_status').value=''; openModal('medModal'); }
+  else if(currentTab==='appointments'){ document.getElementById('apptIdx').value=-1; document.getElementById('apptModalTitle').textContent='Add Appointment'; clearForm('a_date,a_time,a_doctor,a_purpose,a_location,a_insurance,a_prep,a_notes'); openModal('apptModal'); }
+  else if(currentTab==='tasks'){ document.getElementById('taskIdx').value=-1; document.getElementById('taskModalTitle').textContent='Add Task'; clearForm('t_task'); document.getElementById('t_priority').value='High'; openModal('taskModal'); }
+  else{ document.getElementById('providerIdx').value=-1; document.getElementById('providerModalTitle').textContent='Add Doctor'; clearForm('p_name,p_specialty,p_practice,p_phone,p_fax,p_address,p_portal,p_username,p_password_hint,p_notes'); openModal('providerModal'); }
+}
+
+function clearForm(ids){ ids.split(',').forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); }
+
+// PROVIDERS
+function editProvider(i){
+  const p=data.providers[i];
+  document.getElementById('providerIdx').value=i;
+  document.getElementById('providerModalTitle').textContent='Edit Doctor';
+  document.getElementById('p_name').value=p.name||'';
+  document.getElementById('p_specialty').value=p.specialty||'';
+  document.getElementById('p_practice').value=p.practice||'';
+  document.getElementById('p_phone').value=p.phone||'';
+  document.getElementById('p_fax').value=p.fax||'';
+  document.getElementById('p_address').value=p.address||'';
+  document.getElementById('p_portal').value=p.portal||'';
+  document.getElementById('p_username').value=p.username||'';
+  document.getElementById('p_password_hint').value=p.password_hint||'';
+  document.getElementById('p_notes').value=p.notes||'';
+  openModal('providerModal');
+}
+function saveProvider(){
+  const name=document.getElementById('p_name').value.trim();
+  if(!name){ alert('Please enter a doctor name.'); return; }
+  const p={name,specialty:document.getElementById('p_specialty').value.trim(),practice:document.getElementById('p_practice').value.trim(),phone:document.getElementById('p_phone').value.trim(),fax:document.getElementById('p_fax').value.trim(),address:document.getElementById('p_address').value.trim(),portal:document.getElementById('p_portal').value.trim(),username:document.getElementById('p_username').value.trim(),password_hint:document.getElementById('p_password_hint').value.trim(),notes:document.getElementById('p_notes').value.trim()};
+  const idx=parseInt(document.getElementById('providerIdx').value);
+  if(idx>=0) data.providers[idx]=p; else data.providers.push(p);
+  save(); closeModal('providerModal'); render();
+}
+function deleteProvider(i){ if(confirm('Remove '+data.providers[i].name+'?')){ data.providers.splice(i,1); save(); render(); } }
+
+// MEDS
+function editMed(i){
+  const m=data.medications[i];
+  document.getElementById('medIdx').value=i;
+  document.getElementById('medModalTitle').textContent='Edit Medication';
+  document.getElementById('m_name').value=m.name||'';
+  document.getElementById('m_dose').value=m.dose||'';
+  document.getElementById('m_frequency').value=m.frequency||'';
+  document.getElementById('m_doctor').value=m.doctor||'';
+  document.getElementById('m_pharmacy').value=m.pharmacy||'';
+  document.getElementById('m_refill_phone').value=m.refill_phone||'';
+  document.getElementById('m_refill_status').value=m.refill_status||'Active';
+  document.getElementById('m_supply_status').value=m.supply_status||'';
+  document.getElementById('m_notes').value=m.notes||'';
+  openModal('medModal');
+}
+function saveMed(){
+  const name=document.getElementById('m_name').value.trim();
+  if(!name){ alert('Please enter a medication name.'); return; }
+  const m={name,dose:document.getElementById('m_dose').value.trim(),frequency:document.getElementById('m_frequency').value.trim(),doctor:document.getElementById('m_doctor').value.trim(),pharmacy:document.getElementById('m_pharmacy').value.trim(),refill_phone:document.getElementById('m_refill_phone').value.trim(),refill_status:document.getElementById('m_refill_status').value,supply_status:document.getElementById('m_supply_status').value,notes:document.getElementById('m_notes').value.trim()};
+  const idx=parseInt(document.getElementById('medIdx').value);
+  if(idx>=0) data.medications[idx]=m; else data.medications.push(m);
+  save(); closeModal('medModal'); render();
+}
+function deleteMed(i){ if(confirm('Remove '+data.medications[i].name+'?')){ data.medications.splice(i,1); save(); render(); } }
+
+// APPOINTMENTS
+function editAppt(i){
+  const a=data.appointments[i];
+  document.getElementById('apptIdx').value=i;
+  document.getElementById('apptModalTitle').textContent='Edit Appointment';
+  document.getElementById('a_date').value=a.date||'';
+  document.getElementById('a_time').value=a.time||'';
+  document.getElementById('a_doctor').value=a.doctor||'';
+  document.getElementById('a_purpose').value=a.purpose||'';
+  document.getElementById('a_location').value=a.location||'';
+  document.getElementById('a_insurance').value=a.insurance||'';
+  document.getElementById('a_prep').value=a.prep||'';
+  document.getElementById('a_notes').value=a.notes||'';
+  openModal('apptModal');
+}
+function saveAppt(){
+  const doctor=document.getElementById('a_doctor').value.trim();
+  if(!doctor){ alert('Please enter a doctor name.'); return; }
+  const a={date:document.getElementById('a_date').value,time:document.getElementById('a_time').value,doctor,purpose:document.getElementById('a_purpose').value.trim(),location:document.getElementById('a_location').value.trim(),insurance:document.getElementById('a_insurance').value.trim(),prep:document.getElementById('a_prep').value.trim(),notes:document.getElementById('a_notes').value.trim()};
+  const idx=parseInt(document.getElementById('apptIdx').value);
+  if(idx>=0) data.appointments[idx]=a; else data.appointments.push(a);
+  save(); closeModal('apptModal'); render();
+}
+function deleteAppt(i){ if(confirm('Remove this appointment?')){ data.appointments.splice(i,1); save(); render(); } }
+
+// TASKS
+function editTask(i){
+  const t=data.tasks[i];
+  document.getElementById('taskIdx').value=i;
+  document.getElementById('taskModalTitle').textContent='Edit Task';
+  document.getElementById('t_task').value=t.task||'';
+  document.getElementById('t_priority').value=t.priority||'High';
+  openModal('taskModal');
+}
+function saveTask(){
+  const task=document.getElementById('t_task').value.trim();
+  if(!task){ alert('Please enter a task.'); return; }
+  const t={task,priority:document.getElementById('t_priority').value,done:false};
+  const idx=parseInt(document.getElementById('taskIdx').value);
+  if(idx>=0){ t.done=data.tasks[idx].done; data.tasks[idx]=t; } else data.tasks.push(t);
+  save(); closeModal('taskModal'); render();
+}
+function deleteTask(i){ if(confirm('Remove this task?')){ data.tasks.splice(i,1); save(); render(); } }
+function toggleTask(i){ data.tasks[i].done=!data.tasks[i].done; save(); render(); }
+
+// EXPORT
+function exportData(){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='medical-dashboard-backup.json';
+  a.click();
+}
+
+// Close modals on overlay tap
+['providerModal','medModal','apptModal','taskModal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) closeModal(id); });
+});
+
+render();
+</script>
+</body>
+</html>
