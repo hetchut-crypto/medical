@@ -1,0 +1,274 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Medical Dashboard</title>
+<style>
+:root{
+--navy:#061A45;
+--green:#00765B;
+--gold:#BA7700;
+--purple:#3C167D;
+--red:#9B111E;
+--bg:#F5F7FA;
+--card:#FFFFFF;
+--text:#1F2937;
+--line:#D1D5DB;
+}
+body{
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+margin:0;
+background:var(--bg);
+color:var(--text);
+}
+header{
+background:var(--navy);
+color:white;
+padding:18px;
+position:sticky;
+top:0;
+z-index:100;
+}
+h1{margin:0;text-align:center;font-size:24px;}
+.subtitle{text-align:center;font-size:13px;opacity:.85;margin-top:6px;}
+.tabs{
+display:flex;
+overflow:auto;
+gap:8px;
+margin-top:14px;
+}
+.tab{
+background:rgba(255,255,255,.12);
+padding:10px 14px;
+border-radius:999px;
+font-weight:700;
+white-space:nowrap;
+cursor:pointer;
+}
+.tab.active{
+background:white;
+color:var(--navy);
+}
+main{padding:14px;padding-bottom:100px;}
+.section{display:none;}
+.section.active{display:block;}
+.band{
+padding:10px 14px;
+border-radius:14px 14px 0 0;
+font-weight:800;
+color:white;
+margin-top:14px;
+}
+.green{background:var(--green);}
+.gold{background:var(--gold);}
+.purple{background:var(--purple);}
+.red{background:var(--red);}
+.card{
+background:var(--card);
+border:1px solid var(--line);
+border-radius:18px;
+padding:14px;
+margin-bottom:12px;
+box-shadow:0 2px 8px rgba(0,0,0,.05);
+}
+.summary{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+}
+.tile{
+background:white;
+border-radius:18px;
+padding:16px;
+text-align:center;
+border:1px solid var(--line);
+}
+.tile strong{font-size:30px;display:block;}
+.tile span{font-size:13px;}
+label{font-size:12px;font-weight:700;display:block;margin-bottom:4px;color:#6B7280;}
+input,textarea{
+width:100%;
+padding:10px;
+border-radius:12px;
+border:1px solid var(--line);
+font-size:15px;
+box-sizing:border-box;
+}
+textarea{min-height:70px;}
+.grid{display:grid;grid-template-columns:1fr;gap:10px;}
+.bottom{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+padding:12px;
+background:white;
+border-top:1px solid var(--line);
+display:flex;
+gap:10px;
+}
+.bottom button{
+flex:1;
+padding:12px;
+border:none;
+border-radius:14px;
+font-weight:800;
+color:white;
+background:var(--green);
+}
+.backup{background:var(--purple)!important;}
+.small{font-size:13px;color:#6B7280;}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🩺 MY MEDICAL DASHBOARD</h1>
+<div class="subtitle">Personal Health Organizer — optimized for phone & computer</div>
+
+<div class="tabs">
+<div class="tab active" data-tab="dashboard">📊 Dashboard</div>
+<div class="tab" data-tab="providers">👩🏽‍⚕️ Care Team</div>
+<div class="tab" data-tab="meds">💊 Medications</div>
+<div class="tab" data-tab="appointments">📅 Appointments</div>
+<div class="tab" data-tab="tasks">✅ Tasks</div>
+</div>
+</header>
+
+<main>
+
+<section id="dashboard" class="section active"></section>
+<section id="providers" class="section"></section>
+<section id="meds" class="section"></section>
+<section id="appointments" class="section"></section>
+<section id="tasks" class="section"></section>
+
+</main>
+
+<div class="bottom">
+<button onclick="addItem()">➕ Add</button>
+<button class="backup" onclick="exportData()">⬇️ Backup</button>
+</div>
+
+<script>
+
+let data = {"providers": [{"name": "Dr. Hudson", "specialty": "Rheumatology", "phone": "", "fax": "", "address": "", "practice": "", "portal": "", "username": "", "password_hint": "", "notes": "Manages inflammation / hydroxychloroquine"}, {"name": "Ms. Jackson", "specialty": "Primary Care", "phone": "", "fax": "", "address": "", "practice": "", "portal": "", "username": "", "password_hint": "", "notes": "Current PCP"}, {"name": "Dr. Hamilton", "specialty": "Unknown", "phone": "", "fax": "", "address": "", "practice": "", "portal": "", "username": "", "password_hint": "", "notes": "Prescribes naltrexone"}, {"name": "Dr. Okareke", "specialty": "Previous PCP", "phone": "", "fax": "", "address": "", "practice": "", "portal": "", "username": "", "password_hint": "", "notes": "Lamotrigine refill requested"}, {"name": "Dr. Monique Montenegro", "specialty": "Neurology", "phone": "", "fax": "", "address": "Minnesota", "practice": "", "portal": "", "username": "", "password_hint": "", "notes": "Prescribed oxcarbazepine"}, {"name": "Unknown New Neurologist", "specialty": "Neurology", "phone": "", "fax": "", "address": "", "practice": "", "portal": "", "username": "", "password_hint": "", "notes": "Need provider information"}], "medications": [{"name": "Hydroxychloroquine", "dose": "", "frequency": "", "doctor": "Dr. Hudson", "pharmacy": "", "refill_phone": "", "last_filled": "", "refill_status": "Active", "supply_status": "", "notes": ""}, {"name": "Lamotrigine", "dose": "25mg", "frequency": "", "doctor": "Dr. Okareke", "pharmacy": "", "refill_phone": "", "last_filled": "", "refill_status": "Refill Requested", "supply_status": "OUT", "notes": "Currently out"}, {"name": "Lamotrigine", "dose": "100mg", "frequency": "", "doctor": "Dr. Okareke", "pharmacy": "", "refill_phone": "", "last_filled": "", "refill_status": "Refill Requested", "supply_status": "OUT", "notes": "Currently out"}, {"name": "Oxcarbazepine", "dose": "", "frequency": "", "doctor": "Dr. Monique Montenegro", "pharmacy": "", "refill_phone": "", "last_filled": "", "refill_status": "Active", "supply_status": "Enough currently", "notes": ""}, {"name": "Naltrexone", "dose": "", "frequency": "", "doctor": "Dr. Hamilton", "pharmacy": "", "refill_phone": "", "last_filled": "", "refill_status": "Unknown", "supply_status": "", "notes": ""}], "appointments": [], "tasks": [{"task": "Confirm lamotrigine 25mg refill approval", "priority": "High"}, {"task": "Confirm lamotrigine 100mg refill approval", "priority": "High"}, {"task": "Find new neurologist contact information", "priority": "Medium"}, {"task": "Add facility names and phone numbers", "priority": "Medium"}]};
+let currentTab = "dashboard";
+
+document.querySelectorAll(".tab").forEach(tab=>{
+tab.onclick=()=>{
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+tab.classList.add("active");
+document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+document.getElementById(tab.dataset.tab).classList.add("active");
+currentTab = tab.dataset.tab;
+render();
+}
+});
+
+function renderDashboard(){
+document.getElementById("dashboard").innerHTML = `
+<div class="band green">⚡ QUICK SUMMARY</div>
+<div class="summary">
+<div class="tile"><strong>${data.providers.length}</strong><span>👩🏽‍⚕️ Doctors</span></div>
+<div class="tile"><strong>${data.medications.length}</strong><span>💊 Medications</span></div>
+<div class="tile"><strong>${data.appointments.length}</strong><span>📅 Appointments</span></div>
+<div class="tile"><strong>${data.tasks.length}</strong><span>✅ Tasks</span></div>
+</div>
+
+<div class="band gold">🚨 NEEDS ATTENTION</div>
+<div class="card">
+${data.tasks.map(t=>`<p>• <b>${t.priority}</b> — ${t.task}</p>`).join("")}
+</div>
+
+<div class="band purple">📘 HOW TO USE</div>
+<div class="card">
+<p>👩🏽‍⚕️ Add doctors, specialists, phone numbers, and portals.</p>
+<p>💊 Track medication refills and prescribing doctors.</p>
+<p>📅 Add appointments and prep requirements.</p>
+<p>📞 Keep important phone & fax numbers handy.</p>
+</div>
+`;
+}
+
+function renderProviders(){
+document.getElementById("providers").innerHTML =
+'<div class="band green">👩🏽‍⚕️ CARE TEAM</div>' +
+data.providers.map((p,i)=>`
+<div class="card">
+<h3>👩🏽‍⚕️ ${p.name}</h3>
+<div class="small">${p.specialty}</div>
+<br>
+<div class="grid">
+<div><label>Phone</label><input value="${p.phone}"></div>
+<div><label>Fax</label><input value="${p.fax}"></div>
+<div><label>Address</label><input value="${p.address}"></div>
+<div><label>Practice</label><input value="${p.practice}"></div>
+<div><label>Portal</label><input value="${p.portal}"></div>
+<div><label>Username Hint</label><input value="${p.username}"></div>
+<div><label>Password Hint</label><input value="${p.password_hint}"></div>
+<div><label>Notes</label><textarea>${p.notes}</textarea></div>
+</div>
+</div>`).join("");
+}
+
+function renderMeds(){
+document.getElementById("meds").innerHTML =
+'<div class="band green">💊 MEDICATIONS</div>' +
+data.medications.map(m=>`
+<div class="card">
+<h3>💊 ${m.name} ${m.dose}</h3>
+<div class="small">${m.refill_status}</div>
+<br>
+<div class="grid">
+<div><label>Doctor</label><input value="${m.doctor}"></div>
+<div><label>Pharmacy</label><input value="${m.pharmacy}"></div>
+<div><label>Supply Status</label><input value="${m.supply_status}"></div>
+<div><label>Notes</label><textarea>${m.notes}</textarea></div>
+</div>
+</div>`).join("");
+}
+
+function renderAppointments(){
+document.getElementById("appointments").innerHTML =
+'<div class="band gold">📅 APPOINTMENTS</div><div class="card"><p>No appointments added yet.</p></div>';
+}
+
+function renderTasks(){
+document.getElementById("tasks").innerHTML =
+'<div class="band purple">✅ TASKS & FOLLOW UPS</div>' +
+data.tasks.map(t=>`
+<div class="card">
+<h3>✅ ${t.task}</h3>
+<div class="small">${t.priority} Priority</div>
+</div>`).join("");
+}
+
+function render(){
+renderDashboard();
+renderProviders();
+renderMeds();
+renderAppointments();
+renderTasks();
+}
+
+function addItem(){
+alert("Add functionality placeholder — can continue expanding later.");
+}
+
+function exportData(){
+const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+const a = document.createElement('a');
+a.href = URL.createObjectURL(blob);
+a.download = 'medical-dashboard-backup.json';
+a.click();
+}
+
+render();
+
+</script>
+
+</body>
+</html>
