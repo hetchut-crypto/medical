@@ -111,8 +111,12 @@ textarea{min-height:70px;resize:vertical;}
 .ai-save-btn.show{display:block;}
 .ai-close-btn{padding:14px 20px;background:rgba(255,255,255,.1);color:white;border:none;border-radius:14px;font-weight:700;font-size:15px;cursor:pointer;font-family:inherit;}
 .ai-send-btn{flex:1;padding:14px;background:var(--pink);color:white;border:none;border-radius:14px;font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;}
-.ai-examples{width:100%;max-width:500px;margin-bottom:20px;}
+.ai-examples{width:100%;max-width:500px;margin-bottom:16px;}
+.ai-examples-toggle{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 14px;color:rgba(255,255,255,.75);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;}
+.ai-examples-list{display:none;margin-top:8px;}
+.ai-examples-list.open{display:block;}
 .ai-example{background:rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;margin-bottom:8px;color:rgba(255,255,255,.7);font-size:13px;cursor:pointer;border:1px solid rgba(255,255,255,.1);}
+.ai-example:last-child{margin-bottom:0;}
 .ai-example:active{background:rgba(255,255,255,.15);}
 .info-val{font-size:13px;color:var(--text);font-weight:500;}
 .sym-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
@@ -251,11 +255,12 @@ textarea{min-height:70px;resize:vertical;}
   <div class="ai-title">AI Health Assistant</div>
   <div class="ai-sub">Type naturally and I'll update your dashboard automatically.<br>Press Enter or tap ✨ Process when ready.</div>
   <div class="ai-examples" id="ai-examples">
-    <div class="ai-example" onclick="useExample(this)">👩🏽‍⚕️ New doctor Dr. Jane Smith cardiologist at Heart Center phone 555-1234</div>
-    <div class="ai-example" onclick="useExample(this)">💊 Lamotrigine increased to 50mg twice daily by Dr. Okareke</div>
-    <div class="ai-example" onclick="useExample(this)">📅 Appointment with Dr. Hudson June 25th at 2pm</div>
-    <div class="ai-example" onclick="useExample(this)">🌡️ Bad joint pain today severity 7 out of 10 lasted 3 hours</div>
-    <div class="ai-example" onclick="useExample(this)">✅ Call Dr. Okareke about Lamotrigine refill high priority</div>
+    <button type="button" class="ai-examples-toggle" id="ai-examples-toggle" onclick="toggleAIExamples()">▸ Try an example</button>
+    <div class="ai-examples-list" id="ai-examples-list">
+      <div class="ai-example" onclick="useExample(this)">💊 Naltrexone increased to 4.5mg AM by Dr. Koirala</div>
+      <div class="ai-example" onclick="useExample(this)">🌡️ Right-sided facial pain today severity 6 lasted 2 hours</div>
+      <div class="ai-example" onclick="useExample(this)">✅ Call pharmacy about Lamotrigine refill — high priority</div>
+    </div>
   </div>
   <div class="ai-input-wrap">
     <textarea class="ai-input" id="ai-input" placeholder="Type naturally... e.g. 'Lamotrigine increased to 50mg by Dr. Okareke today'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendToAI();}"></textarea>
@@ -1721,12 +1726,20 @@ function openAI(){
   document.getElementById('ai-save-btn').classList.remove('show');
   document.getElementById('ai-status').textContent='Tap mic to speak or type above';
   document.getElementById('ai-examples').style.display='block';
+  const list=document.getElementById('ai-examples-list');
+  list.classList.remove('open');
+  document.getElementById('ai-examples-toggle').textContent='▸ Try an example';
   document.body.style.overflow='hidden';
 }
 function closeAI(){
   document.getElementById('ai-panel').classList.remove('open');
   document.body.style.overflow='';
   if(isListening) stopMic();
+}
+function toggleAIExamples(){
+  const list=document.getElementById('ai-examples-list');
+  const open=list.classList.toggle('open');
+  document.getElementById('ai-examples-toggle').textContent=open?'▾ Hide examples':'▸ Try an example';
 }
 function useExample(el){
   document.getElementById('ai-input').value = el.textContent.replace(/^[^\s]+\s/,'').trim();
