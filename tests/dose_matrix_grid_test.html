@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dose Log Grid Test</title>
+<style>
+:root{--green:#00765B;--red:#9B111E;--gold:#BA7700;--line:#D1D5DB;--navy:#061A45;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:24px;background:#F5F7FA;color:#1F2937;}
+h1{font-size:20px;margin:0 0 8px;}
+.sub{color:#6B7280;font-size:13px;margin-bottom:16px;}
+#results{background:white;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px;}
+.pass{color:var(--green);font-weight:700;}
+.fail{color:var(--red);font-weight:700;}
+.matrix-wrap{overflow-x:auto;background:white;border:1px solid var(--line);border-radius:14px;padding:12px;}
+.matrix{border-collapse:collapse;font-size:11px;min-width:100%;}
+.matrix th,.matrix td{border:1px solid var(--line);padding:6px 4px;text-align:center;min-width:52px;}
+.matrix th{background:#F3F4F6;font-weight:700;font-size:10px;color:#6B7280;}
+.matrix-cell{border-radius:6px;padding:6px 4px;font-weight:700;font-size:10px;}
+.cell-good{background:#D1FAE5;color:var(--green);}
+.cell-bad{background:#FEE2E2;color:var(--red);}
+.cell-mixed{background:#FEF3C7;color:var(--gold);}
+.cell-once{background:#F3F4F6;color:#6B7280;border:1px dashed #D1D5DB;}
+.cell-empty{background:white;color:#D1D5DB;}
+.banner{padding:12px 14px;border-radius:12px;font-weight:800;margin-bottom:16px;}
+.banner.ok{background:#D1FAE5;color:var(--green);}
+.banner.bad{background:#FEE2E2;color:var(--red);}
+</style>
+</head>
+<body>
+<h1>Dose Log — Grid / Matrix axis test</h1>
+<p class="sub">Renders sample Naltrexone (X) × Lamotrigine (Y) data with the same builder logic as the app.</p>
+<div id="banner" class="banner"></div>
+<div id="results"></div>
+<div id="preview"></div>
+
+<script>
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function doseLabel(d){
+  const am=(d.am||'').trim(), pm=(d.pm||'').trim();
+  if(am&&pm) return am+' AM / '+pm+' PM';
+  if(am) return am;
+  if(pm) return pm+' PM';
+  return (d.dose||'').trim();
+}
+function medDoseKey(d){return doseLabel(d)||'—';}
+function dosesForMed(entry,medName){
+  const d=(entry.doses||[]).find(x=>(x.name||'').trim().toLowerCase()===medName.toLowerCase());
+  return d?medDoseKey(d):null;
+}
+function buildDoseMatrix(entries,xMed,yMed){
+  if(!xMed||!yMed||xMed===yMed) return '';
+  const xVals=new Set(), yVals=new Set(), cells={};
+  entries.forEach(e=>{
+    const xv=dosesForMed(e,xMed), yv=dosesForMed(e,yMed);
+    if(xv==null||yv==null) return;
+    xVals.add(xv); yVals.add(yv);
+    const k=xv+'||'+yv;
+    if(!cells[k]) cells[k]={total:0,noPain:0};
+    cells[k].total++;
+    if(e.outcome==='no_pain') cells[k].noPain++;
+  });
+  const xs=[...xVals].sort(), ys=[...yVals].sort();
+  if(!xs.length||!ys.length) return '<div class="card"><p class="small">Not enough overlapping dose data for these two meds yet.</p></div>';
+  let html=`<div class="matrix-wrap"><table class="matrix"><thead><tr><th>${esc(yMed)} \\ ${esc(xMed)}</th>`;
+  xs.forEach(x=>{html+=`<th class="axis-lbl">${esc(x)}</th>`;});
+  html+='</tr></thead><tbody>';
+  ys.forEach(y=>{
+    html+=`<tr><th class="axis-lbl">${esc(y)}</th>`;
+    xs.forEach(x=>{
+      const c=cells[x+'||'+y];
+      if(!c){html+='<td><div class="matrix-cell cell-empty">·</div></td>';return;}
+      const rate=c.noPain/c.total;
+      let cls='cell-mixed',label=Math.round(rate*100)+'%';
+      if(c.total===1){cls='cell-once';label=c.noPain?'OK?':'Pain?';}
+      else if(rate>=0.7) cls='cell-good';
+      else if(rate<=0.3) cls='cell-bad';
+      html+=`<td><div class="matrix-cell ${cls}" title="${c.noPain}/${c.total} no pain">${label}<div style="font-weight:500;opacity:.8">${c.total===1?'Needs Repeat':c.noPain+'/'+c.total}</div></div></td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
+}
+
+const SAMPLE=[
+  {outcome:'no_pain',doses:[{name:'Naltrexone',am:'4.5mg',pm:'3.0mg'},{name:'Lamotrigine',am:'125mg',pm:'125mg'}]},
+  {outcome:'no_pain',doses:[{name:'Naltrexone',am:'4.5mg',pm:'3.0mg'},{name:'Lamotrigine',am:'125mg',pm:'125mg'}]},
+  {outcome:'pain',doses:[{name:'Naltrexone',am:'3.0mg',pm:'3.0mg'},{name:'Lamotrigine',am:'125mg',pm:'125mg'}]},
+  {outcome:'pain',doses:[{name:'Naltrexone',am:'4.5mg',pm:'4.5mg'},{name:'Lamotrigine',am:'100mg',pm:'100mg'}]},
+  {outcome:'no_pain',doses:[{name:'Naltrexone',am:'4.5mg',pm:'3.0mg'},{name:'Lamotrigine',am:'100mg',pm:'100mg'}]},
+  {outcome:'no_pain',doses:[{name:'Naltrexone',am:'4.5mg',pm:'3.0mg'},{name:'Lamotrigine',am:'100mg',pm:'100mg'}]},
+];
+
+const html=buildDoseMatrix(SAMPLE,'Naltrexone','Lamotrigine');
+document.getElementById('preview').innerHTML=html;
+
+const table=document.querySelector('table.matrix');
+const corner=table?.querySelector('thead th')?.textContent||'';
+const xLabels=[...table.querySelectorAll('thead th.axis-lbl')].map(el=>el.textContent);
+const yLabels=[...table.querySelectorAll('tbody tr > th.axis-lbl')].map(el=>el.textContent);
+const cells=[...table.querySelectorAll('.matrix-cell')];
+const filled=cells.filter(c=>!c.classList.contains('cell-empty'));
+
+const checks=[
+  ['table.matrix exists', !!table],
+  ['corner is Y \\ X (Lamotrigine \\ Naltrexone)', corner.includes('Lamotrigine') && corner.includes('Naltrexone') && corner.includes('\\')],
+  ['X axis has ≥2 dose columns', xLabels.length>=2],
+  ['Y axis has ≥2 dose rows', yLabels.length>=2],
+  ['X includes 4.5mg AM / 3.0mg PM', xLabels.some(x=>x.includes('4.5mg AM / 3.0mg PM'))],
+  ['Y includes 125mg AM / 125mg PM', yLabels.some(y=>y.includes('125mg AM / 125mg PM'))],
+  ['Y includes 100mg AM / 100mg PM', yLabels.some(y=>y.includes('100mg AM / 100mg PM'))],
+  ['grid is full rectangle', cells.length===xLabels.length*yLabels.length],
+  ['has filled outcome cells', filled.length>=3],
+];
+
+const failed=checks.filter(([,ok])=>!ok);
+document.getElementById('results').innerHTML=checks.map(([msg,ok])=>
+  `<div class="${ok?'pass':'fail'}">${ok?'PASS':'FAIL'} — ${msg}</div>`
+).join('')+`<div style="margin-top:10px;font-size:13px;color:#6B7280">
+  Corner: <b>${corner}</b><br>
+  X: ${xLabels.join(' · ')}<br>
+  Y: ${yLabels.join(' · ')}
+</div>`;
+
+const banner=document.getElementById('banner');
+if(failed.length){
+  banner.className='banner bad';
+  banner.textContent=`FAIL — ${failed.length} check(s) failed`;
+}else{
+  banner.className='banner ok';
+  banner.textContent='PASS — grid shows real X and Y axes with outcome cells';
+}
+</script>
+</body>
+</html>

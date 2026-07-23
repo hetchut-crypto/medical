@@ -118,9 +118,25 @@ textarea{min-height:70px;resize:vertical;}
 .sym-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
 .sym-chip{background:var(--bg);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--text);}
 .logged-attr{font-size:11px;color:#9CA3AF;margin-top:8px;}
-.view-toggle{display:flex;gap:6px;margin-bottom:12px;}
+.view-toggle{display:flex;gap:6px;margin-bottom:12px;align-items:stretch;}
 .view-btn{flex:1;padding:9px;border:1.5px solid var(--line);background:white;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;color:#6B7280;}
 .view-btn.active{border-color:var(--navy);background:var(--navy);color:white;}
+.legend-help-btn{flex:0 0 auto;padding:9px 12px;border:1.5px solid var(--line);background:white;border-radius:12px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;color:var(--navy);white-space:nowrap;}
+.legend-help-btn.open{border-color:var(--purple);background:#EDE9FE;color:var(--purple);}
+.matrix-legend{background:white;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;}
+.matrix-legend h4{margin:0 0 8px;font-size:13px;font-weight:800;color:var(--navy);}
+.matrix-legend p{margin:0 0 10px;font-size:13px;line-height:1.45;color:var(--text);}
+.matrix-legend ul{margin:0;padding:0;list-style:none;}
+.matrix-legend li{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.4;margin-bottom:10px;}
+.matrix-legend li:last-child{margin-bottom:0;}
+.legend-swatch{flex-shrink:0;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.legend-swatch.good{background:#D1FAE5;}
+.legend-swatch.bad{background:#FEE2E2;}
+.legend-swatch.mixed{background:#FEF3C7;}
+.legend-swatch.once{background:#F3F4F6;border:1.5px dashed #D1D5DB;}
+.legend-swatch-txt{font-weight:600;color:var(--text);}
+.legend-swatch-txt b{display:block;font-size:12px;margin-bottom:2px;}
+.legend-swatch-txt span{font-weight:500;color:#6B7280;font-size:12px;}
 .outcome-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
 .outcome-pain{background:#FEE2E2;color:var(--red);}
 .outcome-nopain{background:#D1FAE5;color:var(--green);}
@@ -132,6 +148,7 @@ textarea{min-height:70px;resize:vertical;}
 .sweet-spot h3{margin:0 0 4px;font-size:14px;color:var(--green);}
 .dose-row{background:var(--bg);border-radius:12px;padding:10px;margin-bottom:8px;position:relative;}
 .dose-row-rm{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:4px;}
+.dl-name-custom-wrap{display:none;margin-top:8px;}
 .matrix-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;}
 .matrix{border-collapse:collapse;font-size:11px;min-width:100%;}
 .matrix th,.matrix td{border:1px solid var(--line);padding:6px 4px;text-align:center;min-width:52px;}
@@ -512,6 +529,8 @@ let doseLogCache=[];
 let doseFilterMed='';
 let doseFilterDose='';
 let doseMatrixAxes={x:'',y:''};
+let doseLegendOpen=false;
+let doseMedOptions=[];
 
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
@@ -1010,20 +1029,123 @@ function setDoseOutcome(v){
   document.getElementById('dl_out_nopain').classList.toggle('selected-nopain',v==='no_pain');
 }
 
+async function loadDoseMedOptions(){
+  const{data:meds}=await sb.from('medications').select('name,dose,refill_status').eq('user_id',currentUser.id).order('name');
+  const fromMeds=(meds||[])
+    .filter(m=>m.refill_status!=='Discontinued'&&(m.name||'').trim())
+    .map(m=>({name:m.name.trim(),dose:(m.dose||'').trim()}));
+  // Also include med names already used in dose logs (in case not on current med list)
+  const fromLogs=[];
+  (doseLogCache||[]).forEach(e=>(e.doses||[]).forEach(d=>{
+    const n=(d.name||'').trim();
+    if(n&&!fromMeds.some(m=>m.name.toLowerCase()===n.toLowerCase())&&!fromLogs.some(m=>m.name.toLowerCase()===n.toLowerCase())){
+      fromLogs.push({name:n,dose:''});
+    }
+  }));
+  doseMedOptions=[...fromMeds,...fromLogs].sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+function doseNameOptionsHtml(selectedName){
+  const selected=(selectedName||'').trim();
+  const names=doseMedOptions.map(m=>m.name);
+  const inList=selected&&names.some(n=>n.toLowerCase()===selected.toLowerCase());
+  let opts='<option value="">— Select medication —</option>';
+  names.forEach(n=>{
+    const match=inList&&n.toLowerCase()===selected.toLowerCase();
+    opts+=`<option value="${esc(n)}" ${match?'selected':''}>${esc(n)}</option>`;
+  });
+  if(selected&&!inList){
+    opts+=`<option value="${esc(selected)}" selected>${esc(selected)}</option>`;
+  }
+  opts+='<option value="__other__">＋ Add another…</option>';
+  return opts;
+}
+
+function getDoseRowName(row){
+  const sel=row.querySelector('.dl-name-sel');
+  if(!sel) return '';
+  if(sel.value==='__other__'||sel.value===''){
+    return (row.querySelector('.dl-name-custom')?.value||'').trim();
+  }
+  return sel.value.trim();
+}
+
 function refreshTitratingOptions(){
   const sel=document.getElementById('dl_titrating');
   const cur=sel.value;
-  const names=[...document.querySelectorAll('.dl-name')].map(i=>i.value.trim()).filter(Boolean);
-  sel.innerHTML='<option value="">— None / holding steady —</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  if(names.includes(cur)) sel.value=cur;
+  const names=[...document.querySelectorAll('#dl_dose_rows .dose-row')].map(getDoseRowName).filter(Boolean);
+  const uniq=[...new Set(names)];
+  sel.innerHTML='<option value="">— None / holding steady —</option>'+uniq.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if(uniq.includes(cur)) sel.value=cur;
+}
+
+function onDoseMedChange(sel){
+  const row=sel.closest('.dose-row');
+  const customWrap=row.querySelector('.dl-name-custom-wrap');
+  const customInput=row.querySelector('.dl-name-custom');
+  if(sel.value==='__other__'){
+    customWrap.style.display='block';
+    customInput.value='';
+    customInput.focus();
+  }else{
+    customWrap.style.display='none';
+    customInput.value='';
+    const known=doseMedOptions.find(m=>m.name===sel.value);
+    if(known&&known.dose){
+      const am=row.querySelector('.dl-am'), pm=row.querySelector('.dl-pm');
+      if(!am.value.trim()) am.value=known.dose;
+      if(!pm.value.trim()) pm.value=known.dose;
+    }
+  }
+  refreshTitratingOptions();
+}
+
+function onDoseCustomNameInput(input){
+  refreshTitratingOptions();
+}
+
+function onDoseCustomNameBlur(input){
+  const name=input.value.trim();
+  if(!name) return;
+  if(!doseMedOptions.some(m=>m.name.toLowerCase()===name.toLowerCase())){
+    doseMedOptions.push({name,dose:''});
+    doseMedOptions.sort((a,b)=>a.name.localeCompare(b.name));
+  }
+  // Convert this row's dropdown to the new name so it stays selected
+  const row=input.closest('.dose-row');
+  const sel=row.querySelector('.dl-name-sel');
+  sel.innerHTML=doseNameOptionsHtml(name);
+  row.querySelector('.dl-name-custom-wrap').style.display='none';
+  // Refresh other rows' dropdowns so the new med appears
+  document.querySelectorAll('#dl_dose_rows .dose-row').forEach(r=>{
+    if(r===row) return;
+    const s=r.querySelector('.dl-name-sel');
+    const current=getDoseRowName(r);
+    const wasOther=s.value==='__other__';
+    s.innerHTML=doseNameOptionsHtml(wasOther?'':current);
+    if(wasOther){
+      s.value='__other__';
+      r.querySelector('.dl-name-custom-wrap').style.display='block';
+    }
+  });
+  refreshTitratingOptions();
 }
 
 function addDoseRow(prefill){
   const wrap=document.getElementById('dl_dose_rows');
   const row=document.createElement('div');
   row.className='dose-row';
+  const name=prefill?.name||'';
+  const showCustom=false;
   row.innerHTML=`<button type="button" class="dose-row-rm" onclick="this.parentElement.remove();refreshTitratingOptions()" title="Remove">×</button>
-    <div class="form-group"><label>Medication</label><input class="dl-name" placeholder="Naltrexone" value="${esc(prefill?.name||'')}" oninput="refreshTitratingOptions()"/></div>
+    <div class="form-group"><label>Medication</label>
+      <select class="dl-name-sel" onchange="onDoseMedChange(this)">${doseNameOptionsHtml(name)}</select>
+    </div>
+    <div class="dl-name-custom-wrap" style="display:${showCustom?'block':'none'}">
+      <div class="form-group" style="margin-bottom:0"><label>New medication name</label>
+        <input class="dl-name-custom" placeholder="Type medication name" value="" oninput="onDoseCustomNameInput(this)" onblur="onDoseCustomNameBlur(this)"/>
+      </div>
+    </div>
     <div class="grid2">
       <div class="form-group"><label>AM dose</label><input class="dl-am" placeholder="4.5mg" value="${esc(prefill?.am||'')}"/></div>
       <div class="form-group"><label>PM dose</label><input class="dl-pm" placeholder="3.0mg" value="${esc(prefill?.pm||'')}"/></div>
@@ -1034,7 +1156,7 @@ function addDoseRow(prefill){
 
 function collectDoseRows(){
   return [...document.querySelectorAll('#dl_dose_rows .dose-row')].map(row=>({
-    name:row.querySelector('.dl-name').value.trim(),
+    name:getDoseRowName(row),
     am:row.querySelector('.dl-am').value.trim(),
     pm:row.querySelector('.dl-pm').value.trim()
   })).filter(d=>d.name);
@@ -1050,17 +1172,14 @@ async function openNewDoseLog(){
   const now=new Date();
   document.getElementById('dl_date').value=now.toISOString().slice(0,10);
   document.getElementById('dl_time').value=now.toTimeString().slice(0,5);
-  const{data:meds}=await sb.from('medications').select('name,dose,refill_status').eq('user_id',currentUser.id).order('created_at');
-  if(meds&&meds.length){
-    meds.filter(m=>m.refill_status!=='Discontinued').slice(0,4).forEach(m=>{
-      const dose=(m.dose||'').trim();
-      addDoseRow({name:m.name,am:dose,pm:dose});
+  await loadDoseMedOptions();
+  if(doseMedOptions.length){
+    doseMedOptions.forEach(m=>{
+      addDoseRow({name:m.name,am:m.dose,pm:m.dose});
     });
   } else {
-    addDoseRow({name:'Naltrexone'});
-    addDoseRow({name:'Lamotrigine'});
+    addDoseRow({});
   }
-  if(!document.querySelectorAll('#dl_dose_rows .dose-row').length){addDoseRow({});}
   refreshTitratingOptions();
   openModal('doseLogModal');
 }
@@ -1074,6 +1193,7 @@ async function editDoseLog(id){
   document.getElementById('dl_date').value=date;
   document.getElementById('dl_time').value=time;
   document.getElementById('dl_dose_rows').innerHTML='';
+  await loadDoseMedOptions();
   (data.doses||[]).forEach(d=>addDoseRow(d));
   if(!(data.doses||[]).length) addDoseRow({});
   refreshTitratingOptions();
@@ -1198,8 +1318,37 @@ function buildDoseMatrix(entries,xMed,yMed){
     html+='</tr>';
   });
   html+='</tbody></table></div>';
-  html+='<div class="small" style="margin-bottom:12px">Green ≥70% no pain · Gold mixed · Red ≤30% · Gray dashed = single trial (Needs Repeat)</div>';
   return html;
+}
+
+function doseMatrixLegendHtml(){
+  return `<div class="matrix-legend" id="dose-matrix-legend">
+    <h4>How to read this grid</h4>
+    <p><b>Each cell</b> shows <b>% no-pain</b> and <b>times tried</b> — e.g. <b>0% · 0/3</b> means this dose combo was tried 3 times, and 0 of those 3 were pain-free.</p>
+    <ul>
+      <li>
+        <div class="legend-swatch good">🟢</div>
+        <div class="legend-swatch-txt"><b>Green (≥70% no pain)</b><span>This combo usually doesn't cause pain. Likely a good option.</span></div>
+      </li>
+      <li>
+        <div class="legend-swatch bad">🔴</div>
+        <div class="legend-swatch-txt"><b>Red (≤30% no pain)</b><span>This combo usually causes pain. Likely avoid.</span></div>
+      </li>
+      <li>
+        <div class="legend-swatch mixed">🟡</div>
+        <div class="legend-swatch-txt"><b>Gold (31–69% mixed)</b><span>Inconsistent results. Not reliable yet.</span></div>
+      </li>
+      <li>
+        <div class="legend-swatch once">⚪</div>
+        <div class="legend-swatch-txt"><b>Gray dashed — Needs Repeat</b><span>Only tried once. Not enough data — try this combo again before drawing conclusions.</span></div>
+      </li>
+    </ul>
+  </div>`;
+}
+
+function toggleDoseLegend(){
+  doseLegendOpen=!doseLegendOpen;
+  paintDoseLog();
 }
 
 function filterDoseEntries(entries){
@@ -1210,7 +1359,11 @@ function filterDoseEntries(entries){
   });
 }
 
-function setDoseLogView(v){doseLogView=v;paintDoseLog();}
+function setDoseLogView(v){
+  doseLogView=v;
+  if(v==='grid'&&!window._doseLegendSeen){doseLegendOpen=true;window._doseLegendSeen=true;}
+  paintDoseLog();
+}
 function onDoseFilterMedChange(){
   doseFilterMed=document.getElementById('dl_filter_med').value;
   doseFilterDose='';
@@ -1295,7 +1448,12 @@ function paintDoseLog(){
   html+=`<div class="view-toggle">
     <button class="view-btn ${doseLogView==='list'?'active':''}" onclick="setDoseLogView('list')">List</button>
     <button class="view-btn ${doseLogView==='grid'?'active':''}" onclick="setDoseLogView('grid')">Grid / Matrix</button>
+    ${doseLogView==='grid'?`<button type="button" class="legend-help-btn ${doseLegendOpen?'open':''}" onclick="toggleDoseLegend()" aria-expanded="${doseLegendOpen?'true':'false'}" title="How to read this grid">${doseLegendOpen?'Hide legend':'? How to read'}</button>`:''}
   </div>`;
+
+  if(doseLogView==='grid'&&doseLegendOpen){
+    html+=doseMatrixLegendHtml();
+  }
 
   if(!all.length){
     html+=`<div class="card"><p>No dose/outcome entries yet.<br>Tap ➕ Add to log today's doses and whether you had pain.</p></div>`;
