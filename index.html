@@ -117,6 +117,34 @@ textarea{min-height:70px;resize:vertical;}
 .info-val{font-size:13px;color:var(--text);font-weight:500;}
 .sym-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
 .sym-chip{background:var(--bg);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--text);}
+.logged-attr{font-size:11px;color:#9CA3AF;margin-top:8px;}
+.view-toggle{display:flex;gap:6px;margin-bottom:12px;}
+.view-btn{flex:1;padding:9px;border:1.5px solid var(--line);background:white;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;color:#6B7280;}
+.view-btn.active{border-color:var(--navy);background:var(--navy);color:white;}
+.outcome-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.outcome-pain{background:#FEE2E2;color:var(--red);}
+.outcome-nopain{background:#D1FAE5;color:var(--green);}
+.outcome-toggle{display:flex;gap:8px;}
+.outcome-opt{flex:1;padding:12px;border:2px solid var(--line);border-radius:14px;background:white;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;text-align:center;}
+.outcome-opt.selected-pain{border-color:var(--red);background:#FEE2E2;color:var(--red);}
+.outcome-opt.selected-nopain{border-color:var(--green);background:#D1FAE5;color:var(--green);}
+.sweet-spot{background:linear-gradient(135deg,#ECFDF5,#F0FDFA);border:1.5px solid #A7F3D0;border-radius:16px;padding:14px;margin-bottom:12px;}
+.sweet-spot h3{margin:0 0 4px;font-size:14px;color:var(--green);}
+.dose-row{background:var(--bg);border-radius:12px;padding:10px;margin-bottom:8px;position:relative;}
+.dose-row-rm{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:4px;}
+.matrix-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;}
+.matrix{border-collapse:collapse;font-size:11px;min-width:100%;}
+.matrix th,.matrix td{border:1px solid var(--line);padding:6px 4px;text-align:center;min-width:52px;}
+.matrix th{background:#F3F4F6;font-weight:700;font-size:10px;color:#6B7280;}
+.matrix .axis-lbl{writing-mode:horizontal-tb;font-size:10px;max-width:70px;}
+.matrix-cell{border-radius:6px;padding:6px 4px;font-weight:700;font-size:10px;cursor:default;}
+.cell-good{background:#D1FAE5;color:var(--green);}
+.cell-bad{background:#FEE2E2;color:var(--red);}
+.cell-mixed{background:#FEF3C7;color:var(--gold);}
+.cell-once{background:#F3F4F6;color:#6B7280;border:1px dashed #D1D5DB;}
+.cell-empty{background:white;color:#D1D5DB;}
+.filter-bar{background:white;border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:12px;}
+.titrating-tag{display:inline-block;background:#EDE9FE;color:var(--purple);padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;margin-left:4px;}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;}
@@ -170,6 +198,8 @@ textarea{min-height:70px;resize:vertical;}
     <div class="tab" data-tab="tasks">✅ Tasks</div>
     <div class="tab" data-tab="tests">🧪 Test Results</div>
     <div class="tab" data-tab="symptoms">🌡️ Symptoms</div>
+    <div class="tab" data-tab="doselog">🎯 Dose Log</div>
+    <div class="tab" data-tab="diagnoses">🩺 Diagnoses</div>
     <div class="tab" data-tab="medhistory">📋 Med History</div>
   </div>
 </header>
@@ -182,6 +212,8 @@ textarea{min-height:70px;resize:vertical;}
   <section id="tasks" class="section"><div class="loading">Loading...</div></section>
   <section id="tests" class="section"><div class="loading">Loading...</div></section>
   <section id="symptoms" class="section"><div class="loading">Loading...</div></section>
+  <section id="doselog" class="section"><div class="loading">Loading...</div></section>
+  <section id="diagnoses" class="section"><div class="loading">Loading...</div></section>
   <section id="medhistory" class="section"><div class="loading">Loading...</div></section>
 </main>
 
@@ -413,11 +445,73 @@ textarea{min-height:70px;resize:vertical;}
 </div>
 </div>
 
+<!-- DOSE LOG MODAL -->
+<div class="modal-overlay" id="doseLogModal">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <h2 id="doseLogModalTitle">Log Dose & Outcome</h2>
+  <input type="hidden" id="dl_idx" value="">
+  <div class="grid2">
+    <div class="form-group"><label>Date *</label><input id="dl_date" type="date"/></div>
+    <div class="form-group"><label>Time</label><input id="dl_time" type="time"/></div>
+  </div>
+  <div class="form-section">Medications & doses taken</div>
+  <div id="dl_dose_rows"></div>
+  <button type="button" class="btn-edit" style="width:100%;margin-bottom:12px" onclick="addDoseRow()">＋ Add medication</button>
+  <div class="form-group"><label>Medication being titrated / tested</label>
+    <select id="dl_titrating"><option value="">— None / holding steady —</option></select>
+  </div>
+  <div class="form-group"><label>Outcome *</label>
+    <div class="outcome-toggle">
+      <button type="button" class="outcome-opt" id="dl_out_pain" onclick="setDoseOutcome('pain')">Pain</button>
+      <button type="button" class="outcome-opt" id="dl_out_nopain" onclick="setDoseOutcome('no_pain')">No Pain</button>
+    </div>
+    <input type="hidden" id="dl_outcome" value="">
+  </div>
+  <div class="form-group"><label>Context notes (optional)</label><textarea id="dl_context" placeholder="Sleep, stress, activity level..."></textarea></div>
+  <div class="form-group"><label>General notes (optional)</label><textarea id="dl_notes" placeholder="Anything else..."></textarea></div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal('doseLogModal')">Cancel</button>
+    <button class="btn-save" onclick="saveDoseLog()">Save</button>
+  </div>
+</div>
+</div>
+
+<!-- DIAGNOSIS MODAL -->
+<div class="modal-overlay" id="diagnosisModal">
+<div class="modal">
+  <div class="modal-handle"></div>
+  <h2 id="diagnosisModalTitle">Add Diagnosis</h2>
+  <input type="hidden" id="dx_idx" value="">
+  <div class="form-group"><label>Condition name *</label><input id="dx_name" placeholder="Trigeminal Neuralgia"/></div>
+  <div class="form-group"><label>Diagnosing / managing doctor</label>
+    <select id="dx_doctor"><option value="">— Select from Care Team —</option></select>
+  </div>
+  <div class="form-group"><label>Or type doctor name</label><input id="dx_doctor_custom" placeholder="If not in Care Team..."/></div>
+  <div class="grid2">
+    <div class="form-group"><label>Date diagnosed</label><input id="dx_date" type="date"/></div>
+    <div class="form-group"><label>Status</label>
+      <select id="dx_status"><option>Active</option><option>Monitoring</option><option>Resolved</option></select>
+    </div>
+  </div>
+  <div class="form-group"><label>Notes</label><textarea id="dx_notes" placeholder="Laterality, related findings..."></textarea></div>
+  <div class="modal-actions">
+    <button class="btn-cancel" onclick="closeModal('diagnosisModal')">Cancel</button>
+    <button class="btn-save" onclick="saveDiagnosis()">Save</button>
+  </div>
+</div>
+</div>
+
 <script>
 const SUPABASE_URL='https://mslqsmfwdmwgrahmpeqa.supabase.co';
 const SUPABASE_KEY='sb_publishable_UTeOOt82u-UoxqD-PPzUHg_kqYv7oRQ';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let currentUser=null,currentTab='dashboard',isSignUp=false;
+let doseLogView='list';
+let doseLogCache=[];
+let doseFilterMed='';
+let doseFilterDose='';
+let doseMatrixAxes={x:'',y:''};
 
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
@@ -493,6 +587,8 @@ async function render(){
   else if(currentTab==='tasks')await renderTasks();
   else if(currentTab==='tests')await renderTests();
   else if(currentTab==='symptoms')await renderSymptoms();
+  else if(currentTab==='doselog')await renderDoseLog();
+  else if(currentTab==='diagnoses')await renderDiagnoses();
   else if(currentTab==='medhistory')await renderMedHistory();
 }
 
@@ -564,6 +660,9 @@ async function renderDashboard(){
     <p>✅ <b>Tasks</b> — Follow-ups to do.</p>
     <p>🧪 <b>Test Results</b> — Lab work & follow-ups.</p>
     <p>🌡️ <b>Symptoms</b> — Log symptoms & severity.</p>
+    <p>🎯 <b>Dose Log</b> — Track daily doses vs pain to find your sweet spot.</p>
+    <p>🩺 <b>Diagnoses</b> — Conditions, status & managing doctor.</p>
+    <p>📋 <b>Med History</b> — Official prescription-change record.</p>
     <p style="font-size:12px;color:#6B7280;margin-top:8px">🔒 Data securely stored & synced across all devices.</p>
   </div>`;
   document.getElementById('dashboard').innerHTML=html;
@@ -749,6 +848,7 @@ async function renderSymptoms(){
     ${s.duration?`<div class="small" style="margin-top:6px">⏱️ Duration: ${esc(s.duration)}</div>`:''}
     ${s.doctor?`<div class="small">👩🏽‍⚕️ ${esc(s.doctor)}</div>`:''}
     ${s.notes?`<div style="margin-top:6px;font-size:13px;color:#6B7280">${esc(s.notes)}</div>`:''}
+    <div class="logged-attr">${loggedAttribution(s.date,s.time)}</div>
     <div class="card-actions">
       <button class="btn-edit" onclick="editSymptom('${s.id}')">✏️ Edit</button>
       <button class="btn-delete" onclick="deleteSymptom('${s.id}')">🗑️ Delete</button>
@@ -768,7 +868,9 @@ function addItem(){
   else if(currentTab==='tasks'){document.getElementById('taskIdx').value='';document.getElementById('taskModalTitle').textContent='Add Task';clearInputs(['t_task']);document.getElementById('t_priority').value='High';openModal('taskModal');}
   else if(currentTab==='tests'){document.getElementById('testIdx').value='';document.getElementById('testModalTitle').textContent='Add Test Result';clearInputs(['tr_name','tr_date','tr_result','tr_range','tr_doctor','tr_notes']);document.getElementById('tr_followup').value='No';openModal('testModal');}
   else if(currentTab==='medhistory'){document.getElementById('mh_idx').value='';document.getElementById('medHistoryModalTitle').textContent='Log Medication Change';['mh_name','mh_date','mh_old_dose','mh_new_dose','mh_old_freq','mh_new_freq','mh_doctor','mh_reason','mh_notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('mh_type').value='Dose change';openModal('medHistoryModal');}
-  else if(currentTab==='symptoms'){document.getElementById('symptomIdx').value='';document.getElementById('symptomModalTitle').textContent='Log Symptom';clearInputs(['sy_date','sy_time','sy_symptoms','sy_duration','sy_doctor','sy_notes']);document.getElementById('sy_severity').value='5';openModal('symptomModal');}
+  else if(currentTab==='symptoms'){document.getElementById('symptomIdx').value='';document.getElementById('symptomModalTitle').textContent='Log Symptom';clearInputs(['sy_date','sy_time','sy_symptoms','sy_duration','sy_doctor','sy_notes']);document.getElementById('sy_severity').value='5';const now=new Date();document.getElementById('sy_date').value=now.toISOString().slice(0,10);document.getElementById('sy_time').value=now.toTimeString().slice(0,5);openModal('symptomModal');}
+  else if(currentTab==='doselog'){openNewDoseLog();}
+  else if(currentTab==='diagnoses'){openNewDiagnosis();}
   else{document.getElementById('providerIdx').value='';document.getElementById('providerModalTitle').textContent='Add Doctor';clearInputs(['p_name','p_specialty','p_practice','p_phone','p_fax','p_address','p_portal','p_username','p_password_hint','p_notes']);openModal('providerModal');}
 }
 
@@ -871,23 +973,522 @@ async function deleteMedHistory(id){
   }
 }
 
+function loggedAttribution(date,time){
+  const name=(currentUser?.user_metadata?.full_name||currentUser?.email||'').split('@')[0];
+  const when=date?fmtDate(date)+(time?' · '+time:''):'';
+  if(name&&when) return `Logged by ${esc(name)} on ${when}`;
+  if(when) return `Logged on ${when}`;
+  return 'Logged by you';
+}
+
+function doseLabel(d){
+  if(!d) return '';
+  const am=(d.am||'').trim(), pm=(d.pm||'').trim();
+  if(am&&pm) return am+' AM / '+pm+' PM';
+  if(am) return am+(pm?'':' AM');
+  if(pm) return pm+' PM';
+  return (d.dose||'').trim();
+}
+
+function comboKey(doses){
+  return (doses||[]).map(d=>`${(d.name||'').trim().toLowerCase()}:${doseLabel(d)}`).filter(Boolean).sort().join('|');
+}
+
+function medDoseKey(d){return doseLabel(d)||'—';}
+
+function parseLoggedAt(iso){
+  if(!iso) return{date:'',time:''};
+  const dt=new Date(iso);
+  if(isNaN(dt)) return{date:'',time:''};
+  const pad=n=>String(n).padStart(2,'0');
+  return{date:`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`,time:`${pad(dt.getHours())}:${pad(dt.getMinutes())}`};
+}
+
+function setDoseOutcome(v){
+  document.getElementById('dl_outcome').value=v;
+  document.getElementById('dl_out_pain').classList.toggle('selected-pain',v==='pain');
+  document.getElementById('dl_out_nopain').classList.toggle('selected-nopain',v==='no_pain');
+}
+
+function refreshTitratingOptions(){
+  const sel=document.getElementById('dl_titrating');
+  const cur=sel.value;
+  const names=[...document.querySelectorAll('.dl-name')].map(i=>i.value.trim()).filter(Boolean);
+  sel.innerHTML='<option value="">— None / holding steady —</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if(names.includes(cur)) sel.value=cur;
+}
+
+function addDoseRow(prefill){
+  const wrap=document.getElementById('dl_dose_rows');
+  const row=document.createElement('div');
+  row.className='dose-row';
+  row.innerHTML=`<button type="button" class="dose-row-rm" onclick="this.parentElement.remove();refreshTitratingOptions()" title="Remove">×</button>
+    <div class="form-group"><label>Medication</label><input class="dl-name" placeholder="Naltrexone" value="${esc(prefill?.name||'')}" oninput="refreshTitratingOptions()"/></div>
+    <div class="grid2">
+      <div class="form-group"><label>AM dose</label><input class="dl-am" placeholder="4.5mg" value="${esc(prefill?.am||'')}"/></div>
+      <div class="form-group"><label>PM dose</label><input class="dl-pm" placeholder="3.0mg" value="${esc(prefill?.pm||'')}"/></div>
+    </div>`;
+  wrap.appendChild(row);
+  refreshTitratingOptions();
+}
+
+function collectDoseRows(){
+  return [...document.querySelectorAll('#dl_dose_rows .dose-row')].map(row=>({
+    name:row.querySelector('.dl-name').value.trim(),
+    am:row.querySelector('.dl-am').value.trim(),
+    pm:row.querySelector('.dl-pm').value.trim()
+  })).filter(d=>d.name);
+}
+
+async function openNewDoseLog(){
+  document.getElementById('dl_idx').value='';
+  document.getElementById('doseLogModalTitle').textContent='Log Dose & Outcome';
+  document.getElementById('dl_dose_rows').innerHTML='';
+  document.getElementById('dl_context').value='';
+  document.getElementById('dl_notes').value='';
+  setDoseOutcome('');
+  const now=new Date();
+  document.getElementById('dl_date').value=now.toISOString().slice(0,10);
+  document.getElementById('dl_time').value=now.toTimeString().slice(0,5);
+  const{data:meds}=await sb.from('medications').select('name,dose,refill_status').eq('user_id',currentUser.id).order('created_at');
+  if(meds&&meds.length){
+    meds.filter(m=>m.refill_status!=='Discontinued').slice(0,4).forEach(m=>{
+      const dose=(m.dose||'').trim();
+      addDoseRow({name:m.name,am:dose,pm:dose});
+    });
+  } else {
+    addDoseRow({name:'Naltrexone'});
+    addDoseRow({name:'Lamotrigine'});
+  }
+  if(!document.querySelectorAll('#dl_dose_rows .dose-row').length){addDoseRow({});}
+  refreshTitratingOptions();
+  openModal('doseLogModal');
+}
+
+async function editDoseLog(id){
+  const{data}=await sb.from('dose_logs').select('*').eq('id',id).single();
+  if(!data) return;
+  document.getElementById('dl_idx').value=id;
+  document.getElementById('doseLogModalTitle').textContent='Edit Dose & Outcome';
+  const{date,time}=parseLoggedAt(data.logged_at);
+  document.getElementById('dl_date').value=date;
+  document.getElementById('dl_time').value=time;
+  document.getElementById('dl_dose_rows').innerHTML='';
+  (data.doses||[]).forEach(d=>addDoseRow(d));
+  if(!(data.doses||[]).length) addDoseRow({});
+  refreshTitratingOptions();
+  document.getElementById('dl_titrating').value=data.titrating_med||'';
+  setDoseOutcome(data.outcome||'');
+  document.getElementById('dl_context').value=data.context_notes||'';
+  document.getElementById('dl_notes').value=data.notes||'';
+  openModal('doseLogModal');
+}
+
+async function saveDoseLog(){
+  const doses=collectDoseRows();
+  if(!doses.length){alert('Add at least one medication with a name.');return;}
+  const outcome=document.getElementById('dl_outcome').value;
+  if(!outcome){alert('Select Pain or No Pain.');return;}
+  const date=document.getElementById('dl_date').value;
+  if(!date){alert('Please enter a date.');return;}
+  const time=document.getElementById('dl_time').value||'12:00';
+  const logged_at=new Date(date+'T'+time).toISOString();
+  const row={
+    logged_at,
+    doses,
+    titrating_med:document.getElementById('dl_titrating').value||null,
+    outcome,
+    context_notes:document.getElementById('dl_context').value.trim()||null,
+    notes:document.getElementById('dl_notes').value.trim()||null
+  };
+  const id=document.getElementById('dl_idx').value;
+  let res;
+  if(id) res=await sb.from('dose_logs').update(row).eq('id',id);
+  else res=await sb.from('dose_logs').insert({...row,user_id:currentUser.id});
+  if(res.error){alert('Could not save: '+res.error.message+'\n\nIf the table is missing, run supabase-migration-dose-diagnoses.sql in the Supabase SQL Editor.');return;}
+  closeModal('doseLogModal');showToast('✅ Dose & outcome logged!');await renderDoseLog();
+}
+
+async function deleteDoseLog(id){
+  if(confirm('Remove this dose log entry?')){
+    await sb.from('dose_logs').delete().eq('id',id);
+    showToast('Removed.');await renderDoseLog();
+  }
+}
+
+function analyzeDoseCombos(entries){
+  const map={};
+  entries.forEach(e=>{
+    const key=comboKey(e.doses);
+    if(!key) return;
+    if(!map[key]) map[key]={key,doses:e.doses,total:0,noPain:0,pain:0};
+    map[key].total++;
+    if(e.outcome==='no_pain') map[key].noPain++;
+    else map[key].pain++;
+  });
+  return Object.values(map).map(c=>{
+    c.rate=c.total?c.noPain/c.total:0;
+    c.needsRepeat=c.total===1;
+    return c;
+  });
+}
+
+function findSweetSpot(combos){
+  const eligible=combos.filter(c=>!c.needsRepeat&&c.noPain>0);
+  if(!eligible.length) return null;
+  eligible.sort((a,b)=>{
+    if(b.rate!==a.rate) return b.rate-a.rate;
+    if(b.noPain!==a.noPain) return b.noPain-a.noPain;
+    return b.total-a.total;
+  });
+  return eligible[0];
+}
+
+function formatDosesInline(doses){
+  return (doses||[]).map(d=>{
+    const lbl=doseLabel(d);
+    return `<div style="font-size:13px;margin:2px 0"><b>${esc(d.name)}</b>${lbl?': '+esc(lbl):''}</div>`;
+  }).join('');
+}
+
+function getMedNames(entries){
+  const counts={};
+  entries.forEach(e=>(e.doses||[]).forEach(d=>{
+    const n=(d.name||'').trim();
+    if(n) counts[n]=(counts[n]||0)+1;
+  }));
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([n])=>n);
+}
+
+function dosesForMed(entry,medName){
+  const d=(entry.doses||[]).find(x=>(x.name||'').trim().toLowerCase()===medName.toLowerCase());
+  return d?medDoseKey(d):null;
+}
+
+function buildDoseMatrix(entries,xMed,yMed){
+  if(!xMed||!yMed||xMed===yMed) return '';
+  const xVals=new Set(), yVals=new Set();
+  const cells={};
+  entries.forEach(e=>{
+    const xv=dosesForMed(e,xMed), yv=dosesForMed(e,yMed);
+    if(xv==null||yv==null) return;
+    xVals.add(xv); yVals.add(yv);
+    const k=xv+'||'+yv;
+    if(!cells[k]) cells[k]={total:0,noPain:0};
+    cells[k].total++;
+    if(e.outcome==='no_pain') cells[k].noPain++;
+  });
+  const xs=[...xVals].sort(), ys=[...yVals].sort();
+  if(!xs.length||!ys.length) return '<div class="card"><p class="small">Not enough overlapping dose data for these two meds yet.</p></div>';
+  let html=`<div class="matrix-wrap"><table class="matrix"><thead><tr><th>${esc(yMed)} \\ ${esc(xMed)}</th>`;
+  xs.forEach(x=>{html+=`<th class="axis-lbl">${esc(x)}</th>`;});
+  html+='</tr></thead><tbody>';
+  ys.forEach(y=>{
+    html+=`<tr><th class="axis-lbl">${esc(y)}</th>`;
+    xs.forEach(x=>{
+      const c=cells[x+'||'+y];
+      if(!c){html+='<td><div class="matrix-cell cell-empty">·</div></td>';return;}
+      const rate=c.noPain/c.total;
+      let cls='cell-mixed',label=Math.round(rate*100)+'%';
+      if(c.total===1){cls='cell-once';label=c.noPain?'OK?':'Pain?';}
+      else if(rate>=0.7) cls='cell-good';
+      else if(rate<=0.3) cls='cell-bad';
+      html+=`<td><div class="matrix-cell ${cls}" title="${c.noPain}/${c.total} no pain">${label}<div style="font-weight:500;opacity:.8">${c.total===1?'Needs Repeat':c.noPain+'/'+c.total}</div></div></td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  html+='<div class="small" style="margin-bottom:12px">Green ≥70% no pain · Gold mixed · Red ≤30% · Gray dashed = single trial (Needs Repeat)</div>';
+  return html;
+}
+
+function filterDoseEntries(entries){
+  if(!doseFilterMed||!doseFilterDose) return entries;
+  return entries.filter(e=>{
+    const d=(e.doses||[]).find(x=>(x.name||'').trim()===doseFilterMed);
+    return d && medDoseKey(d)===doseFilterDose;
+  });
+}
+
+function setDoseLogView(v){doseLogView=v;paintDoseLog();}
+function onDoseFilterMedChange(){
+  doseFilterMed=document.getElementById('dl_filter_med').value;
+  doseFilterDose='';
+  paintDoseLog();
+}
+function onDoseFilterDoseChange(){
+  doseFilterDose=document.getElementById('dl_filter_dose').value;
+  paintDoseLog();
+}
+function clearDoseFilter(){doseFilterMed='';doseFilterDose='';paintDoseLog();}
+function onMatrixAxisChange(){
+  doseMatrixAxes.x=document.getElementById('dl_axis_x').value;
+  doseMatrixAxes.y=document.getElementById('dl_axis_y').value;
+  paintDoseLog();
+}
+
+async function renderDoseLog(){
+  const{data,error}=await sb.from('dose_logs').select('*').eq('user_id',currentUser.id).order('logged_at',{ascending:false});
+  if(error){
+    document.getElementById('doselog').innerHTML=`<div class="band purple">🎯 DOSE / OUTCOME LOG</div>
+      <div class="card card-top"><p><b>Table not ready.</b> Run <code>supabase-migration-dose-diagnoses.sql</code> in the Supabase SQL Editor, then refresh.</p>
+      <p class="small">${esc(error.message)}</p></div>`;
+    return;
+  }
+  doseLogCache=data||[];
+  paintDoseLog();
+}
+
+function paintDoseLog(){
+  const all=doseLogCache;
+  const medNames=getMedNames(all);
+  if(!doseMatrixAxes.x&&medNames[0]) doseMatrixAxes.x=medNames[0];
+  if(!doseMatrixAxes.y&&medNames[1]) doseMatrixAxes.y=medNames[1];
+  else if(!doseMatrixAxes.y&&medNames[0]&&doseMatrixAxes.x!==medNames[0]) doseMatrixAxes.y=medNames[0];
+
+  const filtered=filterDoseEntries(all);
+  const combos=analyzeDoseCombos(filtered);
+  const sweet=findSweetSpot(combos);
+
+  let html='<div class="band purple">🎯 DOSE / OUTCOME LOG</div>';
+
+  if(sweet){
+    html+=`<div class="sweet-spot card-top" style="border-radius:0 0 16px 16px;margin-top:0">
+      <h3>✨ Likely Sweet Spot</h3>
+      <div style="font-size:13px;margin:8px 0">${formatDosesInline(sweet.doses)}</div>
+      <div class="small">${sweet.noPain}/${sweet.total} days no pain (${Math.round(sweet.rate*100)}%) — most consistent combo so far</div>
+    </div>`;
+  } else if(all.length){
+    html+=`<div class="card card-top"><div class="small">Log the same dose combo at least twice to surface a Likely Sweet Spot. Single good/bad days are flagged Needs Repeat.</div></div>`;
+  }
+
+  // Filter bar
+  const doseOptsForMed=(()=>{
+    if(!doseFilterMed) return [];
+    const set=new Set();
+    all.forEach(e=>{
+      const d=(e.doses||[]).find(x=>(x.name||'').trim()===doseFilterMed);
+      if(d) set.add(medDoseKey(d));
+    });
+    return [...set].sort();
+  })();
+
+  html+=`<div class="filter-bar" style="${sweet||all.length?'':'border-radius:0 0 14px 14px;margin-top:-14px'}">
+    <div class="form-section" style="margin-bottom:6px">Filter: medication held steady</div>
+    <div class="grid2">
+      <div class="form-group" style="margin:0"><label>Medication</label>
+        <select id="dl_filter_med" onchange="onDoseFilterMedChange()">
+          <option value="">— All entries —</option>
+          ${medNames.map(n=>`<option value="${esc(n)}" ${doseFilterMed===n?'selected':''}>${esc(n)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0"><label>Held at dose</label>
+        <select id="dl_filter_dose" onchange="onDoseFilterDoseChange()" ${doseFilterMed?'':'disabled'}>
+          <option value="">— Any —</option>
+          ${doseOptsForMed.map(d=>`<option value="${esc(d)}" ${doseFilterDose===d?'selected':''}>${esc(d)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    ${doseFilterMed?`<button class="btn-edit" style="margin-top:8px;width:100%" onclick="clearDoseFilter()">Clear filter</button>`:''}
+  </div>`;
+
+  html+=`<div class="view-toggle">
+    <button class="view-btn ${doseLogView==='list'?'active':''}" onclick="setDoseLogView('list')">List</button>
+    <button class="view-btn ${doseLogView==='grid'?'active':''}" onclick="setDoseLogView('grid')">Grid / Matrix</button>
+  </div>`;
+
+  if(!all.length){
+    html+=`<div class="card"><p>No dose/outcome entries yet.<br>Tap ➕ Add to log today's doses and whether you had pain.</p></div>`;
+    document.getElementById('doselog').innerHTML=html;
+    return;
+  }
+
+  if(doseLogView==='grid'){
+    html+=`<div class="card">
+      <div class="form-section">Matrix axes</div>
+      <div class="grid2">
+        <div class="form-group" style="margin:0"><label>X axis</label>
+          <select id="dl_axis_x" onchange="onMatrixAxisChange()">
+            ${medNames.map(n=>`<option value="${esc(n)}" ${doseMatrixAxes.x===n?'selected':''}>${esc(n)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="margin:0"><label>Y axis</label>
+          <select id="dl_axis_y" onchange="onMatrixAxisChange()">
+            ${medNames.map(n=>`<option value="${esc(n)}" ${doseMatrixAxes.y===n?'selected':''}>${esc(n)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>`;
+    html+=buildDoseMatrix(filtered,doseMatrixAxes.x,doseMatrixAxes.y);
+  } else {
+    if(!filtered.length){
+      html+=`<div class="card"><p class="small">No entries match this filter.</p></div>`;
+    }
+    filtered.forEach((e,i)=>{
+      const{date,time}=parseLoggedAt(e.logged_at);
+      const combo=combos.find(c=>c.key===comboKey(e.doses));
+      const outClass=e.outcome==='no_pain'?'outcome-nopain':'outcome-pain';
+      const outLabel=e.outcome==='no_pain'?'No Pain':'Pain';
+      html+=`<div class="card ${i===0&&!sweet?'card-top':''}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">
+          <div style="font-weight:700;font-size:14px">${fmtDate(date)||'—'}${time?' · '+time:''}</div>
+          <span class="outcome-pill ${outClass}">${outLabel}</span>
+        </div>
+        ${formatDosesInline(e.doses)}
+        ${e.titrating_med?`<div style="margin-top:6px"><span class="titrating-tag">Testing: ${esc(e.titrating_med)}</span></div>`:''}
+        ${combo&&combo.needsRepeat?`<div style="margin-top:6px"><span class="badge badge-gold">Needs Repeat</span></div>`:''}
+        ${e.context_notes?`<div class="small" style="margin-top:6px">Context: ${esc(e.context_notes)}</div>`:''}
+        ${e.notes?`<div style="margin-top:4px;font-size:13px;color:#6B7280">${esc(e.notes)}</div>`:''}
+        <div class="logged-attr">${loggedAttribution(date,time)}</div>
+        <div class="card-actions">
+          <button class="btn-edit" onclick="editDoseLog('${e.id}')">✏️ Edit</button>
+          <button class="btn-delete" onclick="deleteDoseLog('${e.id}')">🗑️ Delete</button>
+        </div>
+      </div>`;
+    });
+  }
+  document.getElementById('doselog').innerHTML=html;
+}
+
+async function populateDoctorSelect(selectedName,selectedId){
+  const sel=document.getElementById('dx_doctor');
+  const{data}=await sb.from('providers').select('id,name,specialty').eq('user_id',currentUser.id).order('name');
+  sel.innerHTML='<option value="">— Select from Care Team —</option>'+
+    (data||[]).map(p=>`<option value="${p.id}" data-name="${esc(p.name)}" ${(selectedId&&selectedId===p.id)||(!selectedId&&selectedName&&selectedName===p.name)?'selected':''}>${esc(p.name)}${p.specialty?' · '+esc(p.specialty):''}</option>`).join('');
+}
+
+async function openNewDiagnosis(){
+  document.getElementById('dx_idx').value='';
+  document.getElementById('diagnosisModalTitle').textContent='Add Diagnosis';
+  clearInputs(['dx_name','dx_doctor_custom','dx_date','dx_notes']);
+  document.getElementById('dx_status').value='Active';
+  await populateDoctorSelect('','');
+  openModal('diagnosisModal');
+}
+
+async function editDiagnosis(id){
+  const{data}=await sb.from('diagnoses').select('*').eq('id',id).single();
+  if(!data) return;
+  document.getElementById('dx_idx').value=id;
+  document.getElementById('diagnosisModalTitle').textContent='Edit Diagnosis';
+  document.getElementById('dx_name').value=data.condition_name||'';
+  document.getElementById('dx_date').value=data.date_diagnosed||'';
+  document.getElementById('dx_status').value=data.status||'Active';
+  document.getElementById('dx_notes').value=data.notes||'';
+  await populateDoctorSelect(data.doctor||'',data.provider_id||'');
+  const sel=document.getElementById('dx_doctor');
+  if(!sel.value&&data.doctor) document.getElementById('dx_doctor_custom').value=data.doctor;
+  else document.getElementById('dx_doctor_custom').value='';
+  openModal('diagnosisModal');
+}
+
+async function saveDiagnosis(){
+  const name=document.getElementById('dx_name').value.trim();
+  if(!name){alert('Please enter a condition name.');return;}
+  const sel=document.getElementById('dx_doctor');
+  const opt=sel.options[sel.selectedIndex];
+  const provider_id=sel.value||null;
+  const doctor=provider_id?(opt.dataset.name||opt.textContent.split(' · ')[0]):(document.getElementById('dx_doctor_custom').value.trim()||null);
+  const row={
+    condition_name:name,
+    doctor,
+    provider_id,
+    date_diagnosed:document.getElementById('dx_date').value||null,
+    status:document.getElementById('dx_status').value,
+    notes:document.getElementById('dx_notes').value.trim()||null
+  };
+  const id=document.getElementById('dx_idx').value;
+  let res;
+  if(id) res=await sb.from('diagnoses').update(row).eq('id',id);
+  else res=await sb.from('diagnoses').insert({...row,user_id:currentUser.id});
+  if(res.error){alert('Could not save: '+res.error.message+'\n\nIf the table is missing, run supabase-migration-dose-diagnoses.sql in the Supabase SQL Editor.');return;}
+  closeModal('diagnosisModal');showToast('✅ Diagnosis saved!');await renderDiagnoses();
+}
+
+async function deleteDiagnosis(id,name){
+  if(confirm('Remove diagnosis "'+name+'"?')){
+    await sb.from('diagnoses').delete().eq('id',id);
+    showToast('Removed.');await renderDiagnoses();
+  }
+}
+
+async function seedDefaultDiagnosis(){
+  const seed={
+    condition_name:'Trigeminal Neuralgia',
+    doctor:null,
+    provider_id:null,
+    date_diagnosed:null,
+    status:'Active',
+    notes:'Right-sided; possible left-side involvement as of Sept 2024.',
+    user_id:currentUser.id
+  };
+  // Prefer linking a known neurologist from Care Team if present
+  const{data:providers}=await sb.from('providers').select('id,name,specialty').eq('user_id',currentUser.id);
+  const match=(providers||[]).find(p=>/koirala|neurolog|pain/i.test((p.name||'')+' '+(p.specialty||'')));
+  if(match){seed.provider_id=match.id;seed.doctor=match.name;}
+  await sb.from('diagnoses').insert(seed);
+}
+
+async function renderDiagnoses(){
+  let{data,error}=await sb.from('diagnoses').select('*').eq('user_id',currentUser.id).order('created_at');
+  if(error){
+    document.getElementById('diagnoses').innerHTML=`<div class="band teal">🩺 DIAGNOSES</div>
+      <div class="card card-top"><p><b>Table not ready.</b> Run <code>supabase-migration-dose-diagnoses.sql</code> in the Supabase SQL Editor, then refresh.</p>
+      <p class="small">${esc(error.message)}</p></div>`;
+    return;
+  }
+  if(!(data||[]).length){
+    const seedKey='dx_seeded_'+currentUser.id;
+    if(!localStorage.getItem(seedKey)){
+      await seedDefaultDiagnosis();
+      localStorage.setItem(seedKey,'1');
+      ({data,error}=await sb.from('diagnoses').select('*').eq('user_id',currentUser.id).order('created_at'));
+    }
+  }
+  let html='<div class="band teal">🩺 DIAGNOSES</div>';
+  if(!data||!data.length){html+='<div class="card card-top"><p>No diagnoses yet. Tap ➕ Add.</p></div>';}
+  (data||[]).forEach((d,i)=>{
+    const st=d.status||'Active';
+    const badge=st==='Active'?'badge-red':st==='Monitoring'?'badge-gold':'badge-green';
+    html+=`<div class="card ${i===0?'card-top':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <h3 style="margin:0;font-size:15px">🩺 ${esc(d.condition_name)}</h3>
+        <span class="badge ${badge}">${esc(st)}</span>
+      </div>
+      <div class="grid2" style="margin-bottom:6px">
+        ${d.doctor?`<div><div class="info-lbl">Doctor</div><div class="info-val">${esc(d.doctor)}</div></div>`:''}
+        ${d.date_diagnosed?`<div><div class="info-lbl">Diagnosed</div><div class="info-val">${fmtDate(d.date_diagnosed)}</div></div>`:''}
+      </div>
+      ${d.notes?`<div style="font-size:13px;color:#6B7280">${esc(d.notes)}</div>`:''}
+      <div class="card-actions">
+        <button class="btn-edit" onclick="editDiagnosis('${d.id}')">✏️ Edit</button>
+        <button class="btn-delete" onclick="deleteDiagnosis('${d.id}','${esc(d.condition_name)}')">🗑️ Delete</button>
+      </div>
+    </div>`;
+  });
+  document.getElementById('diagnoses').innerHTML=html;
+}
+
 async function exportData(){
-  const[pRes,mRes,aRes,tRes,trRes,syRes]=await Promise.all([
+  const[pRes,mRes,aRes,tRes,trRes,syRes,dlRes,dxRes,mhRes]=await Promise.all([
     sb.from('providers').select('*').eq('user_id',currentUser.id),
     sb.from('medications').select('*').eq('user_id',currentUser.id),
     sb.from('appointments').select('*').eq('user_id',currentUser.id),
     sb.from('tasks').select('*').eq('user_id',currentUser.id),
     sb.from('test_results').select('*').eq('user_id',currentUser.id),
-    sb.from('symptoms').select('*').eq('user_id',currentUser.id)
+    sb.from('symptoms').select('*').eq('user_id',currentUser.id),
+    sb.from('dose_logs').select('*').eq('user_id',currentUser.id),
+    sb.from('diagnoses').select('*').eq('user_id',currentUser.id),
+    sb.from('medication_history').select('*').eq('user_id',currentUser.id)
   ]);
-  const backup={providers:pRes.data,medications:mRes.data,appointments:aRes.data,tasks:tRes.data,test_results:trRes.data,symptoms:syRes.data,exported:new Date().toISOString()};
+  const backup={providers:pRes.data,medications:mRes.data,appointments:aRes.data,tasks:tRes.data,test_results:trRes.data,symptoms:syRes.data,dose_logs:dlRes.data,diagnoses:dxRes.data,medication_history:mhRes.data,exported:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='HJ-Medical-Backup.json';a.click();
   showToast('✅ Backup downloaded!');
 }
 
 
-['providerModal','medModal','apptModal','taskModal','testModal','symptomModal','medHistoryModal'].forEach(id=>{
+['providerModal','medModal','apptModal','taskModal','testModal','symptomModal','medHistoryModal','doseLogModal','diagnosisModal'].forEach(id=>{
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)closeModal(id);});
 });
 
