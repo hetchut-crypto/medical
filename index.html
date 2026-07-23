@@ -1029,33 +1029,86 @@ function setDoseOutcome(v){
   document.getElementById('dl_out_nopain').classList.toggle('selected-nopain',v==='no_pain');
 }
 
+function normalizeMedKey(name){
+  return (name||'')
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\([^)]*\)\s*/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function cleanMedDisplayName(name){
+  const raw=(name||'').trim();
+  if(!raw) return '';
+  // Drop notes like "(on med list as lamoTRIgine)" for the dropdown label
+  const stripped=raw.replace(/\s*\([^)]*\)\s*$/,'').trim();
+  return stripped||raw;
+}
+
+function preferMedName(existing, incoming){
+  if(!existing) return cleanMedDisplayName(incoming);
+  const a=cleanMedDisplayName(existing);
+  const b=cleanMedDisplayName(incoming);
+  const score=n=>{
+    let s=0;
+    if(/^[A-Z]/.test(n)) s+=2;          // starts with capital
+    if(/[a-z]/.test(n)) s+=1;            // not ALL CAPS / all lower noise
+    if(!/\(/.test(n)) s+=3;              // no parenthetical junk
+    if(n===n.toLowerCase()) s-=1;        // prefer not all-lowercase
+    return s;
+  };
+  if(score(b)>score(a)) return b;
+  if(score(a)>score(b)) return a;
+  // Stable: prefer longer proper name, else existing
+  return b.length>a.length?b:a;
+}
+
 async function loadDoseMedOptions(){
   const{data:meds}=await sb.from('medications').select('name,dose,refill_status').eq('user_id',currentUser.id).order('name');
-  const fromMeds=(meds||[])
-    .filter(m=>m.refill_status!=='Discontinued'&&(m.name||'').trim())
-    .map(m=>({name:m.name.trim(),dose:(m.dose||'').trim()}));
-  // Also include med names already used in dose logs (in case not on current med list)
-  const fromLogs=[];
-  (doseLogCache||[]).forEach(e=>(e.doses||[]).forEach(d=>{
-    const n=(d.name||'').trim();
-    if(n&&!fromMeds.some(m=>m.name.toLowerCase()===n.toLowerCase())&&!fromLogs.some(m=>m.name.toLowerCase()===n.toLowerCase())){
-      fromLogs.push({name:n,dose:''});
+  const map=new Map(); // normalizeMedKey -> {name, dose}
+
+  function upsert(name, dose, doseWins){
+    const key=normalizeMedKey(name);
+    if(!key) return;
+    const cur=map.get(key);
+    if(!cur){
+      map.set(key,{name:cleanMedDisplayName(name),dose:(dose||'').trim()});
+      return;
     }
-  }));
-  doseMedOptions=[...fromMeds,...fromLogs].sort((a,b)=>a.name.localeCompare(b.name));
+    map.set(key,{
+      name:preferMedName(cur.name, name),
+      dose:doseWins&&(dose||'').trim()? (dose||'').trim() : (cur.dose||(dose||'').trim())
+    });
+  }
+
+  (meds||[])
+    .filter(m=>m.refill_status!=='Discontinued'&&(m.name||'').trim())
+    .forEach(m=>upsert(m.name,m.dose,true));
+
+  (doseLogCache||[]).forEach(e=>(e.doses||[]).forEach(d=>upsert(d.name,'',false)));
+
+  doseMedOptions=[...map.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
 }
 
 function doseNameOptionsHtml(selectedName){
   const selected=(selectedName||'').trim();
+  const selectedKey=normalizeMedKey(selected);
   const names=doseMedOptions.map(m=>m.name);
-  const inList=selected&&names.some(n=>n.toLowerCase()===selected.toLowerCase());
+  // Map selection to canonical dropdown value when casing/notes differ
+  let selectedValue='';
+  if(selectedKey){
+    const match=doseMedOptions.find(m=>normalizeMedKey(m.name)===selectedKey);
+    selectedValue=match?match.name:cleanMedDisplayName(selected);
+  }
+  const inList=!!selectedValue&&names.some(n=>normalizeMedKey(n)===normalizeMedKey(selectedValue));
   let opts='<option value="">— Select medication —</option>';
   names.forEach(n=>{
-    const match=inList&&n.toLowerCase()===selected.toLowerCase();
+    const match=inList&&normalizeMedKey(n)===normalizeMedKey(selectedValue);
     opts+=`<option value="${esc(n)}" ${match?'selected':''}>${esc(n)}</option>`;
   });
-  if(selected&&!inList){
-    opts+=`<option value="${esc(selected)}" selected>${esc(selected)}</option>`;
+  if(selectedValue&&!inList){
+    opts+=`<option value="${esc(selectedValue)}" selected>${esc(selectedValue)}</option>`;
   }
   opts+='<option value="__other__">＋ Add another…</option>';
   return opts;
@@ -1090,7 +1143,7 @@ function onDoseMedChange(sel){
   }else{
     customWrap.style.display='none';
     customInput.value='';
-    const known=doseMedOptions.find(m=>m.name===sel.value);
+    const known=doseMedOptions.find(m=>normalizeMedKey(m.name)===normalizeMedKey(sel.value));
     if(known&&known.dose){
       const am=row.querySelector('.dl-am'), pm=row.querySelector('.dl-pm');
       if(!am.value.trim()) am.value=known.dose;
@@ -1107,14 +1160,19 @@ function onDoseCustomNameInput(input){
 function onDoseCustomNameBlur(input){
   const name=input.value.trim();
   if(!name) return;
-  if(!doseMedOptions.some(m=>m.name.toLowerCase()===name.toLowerCase())){
-    doseMedOptions.push({name,dose:''});
-    doseMedOptions.sort((a,b)=>a.name.localeCompare(b.name));
+  const key=normalizeMedKey(name);
+  const existing=doseMedOptions.find(m=>normalizeMedKey(m.name)===key);
+  if(existing){
+    existing.name=preferMedName(existing.name, name);
+  }else{
+    doseMedOptions.push({name:cleanMedDisplayName(name),dose:''});
   }
+  doseMedOptions.sort((a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base'}));
+  const display=existing?existing.name:cleanMedDisplayName(name);
   // Convert this row's dropdown to the new name so it stays selected
   const row=input.closest('.dose-row');
   const sel=row.querySelector('.dl-name-sel');
-  sel.innerHTML=doseNameOptionsHtml(name);
+  sel.innerHTML=doseNameOptionsHtml(display);
   row.querySelector('.dl-name-custom-wrap').style.display='none';
   // Refresh other rows' dropdowns so the new med appears
   document.querySelectorAll('#dl_dose_rows .dose-row').forEach(r=>{
