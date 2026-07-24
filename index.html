@@ -200,7 +200,7 @@ textarea{min-height:70px;resize:vertical;}
 .dose-reminder-actions button{flex:1;padding:10px;border:none;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;}
 .dose-reminder-actions .rem-log{background:var(--green);color:white;}
 .dose-reminder-actions .rem-snooze{background:rgba(255,255,255,.15);color:white;}
-.reminder-card{background:white;border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:12px;margin-bottom:12px;}
+.reminder-card{background:white;border:1.5px solid var(--purple);border-radius:14px;padding:12px;margin-bottom:12px;}
 .reminder-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .reminder-row:last-child{margin-bottom:0;}
 .reminder-toggle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--text);}
@@ -1931,13 +1931,15 @@ function paintDoseLog(){
     html+=doseMatrixLegendHtml();
   }
 
+  // Reminder settings near the top so they're always findable
+  html+=doseReminderSettingsHtml();
+
   if(!all.length){
     if(doseLogView==='calendar'){
       html+=buildDoseCalendarHtml([]);
     } else {
       html+=`<div class="card"><p>No dose/outcome entries yet.<br>Tap ➕ Add to log today's doses and whether you had pain.</p></div>`;
     }
-    html+=doseReminderSettingsHtml();
     document.getElementById('doselog').innerHTML=html;
     return;
   }
@@ -1988,7 +1990,6 @@ function paintDoseLog(){
       </div>`;
     });
   }
-  html+=doseReminderSettingsHtml();
   document.getElementById('doselog').innerHTML=html;
 }
 
