@@ -192,6 +192,19 @@ textarea{min-height:70px;resize:vertical;}
 .cal-dot.mixed{background:#FEF3C7;border:1px solid #FDE68A;}
 .cal-dot.missed{background:#F3F4F6;border:1.5px dashed #D1D5DB;}
 .cal-streak{background:#EEF2FF;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;}
+.dose-reminder-banner{display:none;position:fixed;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:95;background:var(--navy);color:white;border-radius:16px;padding:14px;box-shadow:0 8px 28px rgba(6,26,69,.35);}
+.dose-reminder-banner.show{display:block;}
+.dose-reminder-banner h4{margin:0 0 4px;font-size:14px;font-weight:800;}
+.dose-reminder-banner p{margin:0 0 10px;font-size:12px;opacity:.85;line-height:1.4;}
+.dose-reminder-actions{display:flex;gap:8px;}
+.dose-reminder-actions button{flex:1;padding:10px;border:none;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;}
+.dose-reminder-actions .rem-log{background:var(--green);color:white;}
+.dose-reminder-actions .rem-snooze{background:rgba(255,255,255,.15);color:white;}
+.reminder-card{background:white;border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:12px;margin-bottom:12px;}
+.reminder-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+.reminder-row:last-child{margin-bottom:0;}
+.reminder-toggle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--text);}
+.reminder-toggle input{width:auto;accent-color:var(--green);}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;}
@@ -267,6 +280,15 @@ textarea{min-height:70px;resize:vertical;}
 <div class="bottom">
   <button class="btn-green" onclick="addItem()">➕ Add</button>
   <button class="btn-purple" onclick="exportData()">⬇️ Backup</button>
+</div>
+
+<div id="dose-reminder-banner" class="dose-reminder-banner" role="status" aria-live="polite">
+  <h4>Log today's doses?</h4>
+  <p>Evening check-in — dose + Pain / No Pain keeps your sweet spot accurate.</p>
+  <div class="dose-reminder-actions">
+    <button type="button" class="rem-log" onclick="reminderLogNow()">Log now</button>
+    <button type="button" class="rem-snooze" onclick="snoozeDoseReminder()">Snooze 1 hr</button>
+  </div>
 </div>
 </div>
 
@@ -564,6 +586,7 @@ let doseLegendOpen=false;
 let doseMedOptions=[];
 let doseCalCursor=null; // Date at first of viewed month
 let doseCalSelected=''; // YYYY-MM-DD
+let doseReminderTimer=null;
 
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
@@ -593,8 +616,20 @@ async function handleAuth(){
     else{currentUser=data.user;showApp();}
   }
 }
-async function signOut(){await sb.auth.signOut();currentUser=null;document.getElementById('app').style.display='none';document.getElementById('login-wrap').style.display='flex';}
-function showApp(){document.getElementById('login-wrap').style.display='none';document.getElementById('app').style.display='block';render();}
+async function signOut(){
+  stopDoseReminderWatcher();
+  hideDoseReminderBanner();
+  await sb.auth.signOut();
+  currentUser=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-wrap').style.display='flex';
+}
+function showApp(){
+  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('app').style.display='block';
+  startDoseReminderWatcher();
+  render();
+}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-wrap').style.display!=='none')handleAuth();});
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -1317,7 +1352,10 @@ async function saveDoseLog(){
   if(id) res=await sb.from('dose_logs').update(row).eq('id',id);
   else res=await sb.from('dose_logs').insert({...row,user_id:currentUser.id});
   if(res.error){alert('Could not save: '+res.error.message+'\n\nIf the table is missing, run supabase-migration-dose-diagnoses.sql in the Supabase SQL Editor.');return;}
-  closeModal('doseLogModal');showToast('✅ Dose & outcome logged!');await renderDoseLog();
+  closeModal('doseLogModal');showToast('✅ Dose & outcome logged!');
+  hideDoseReminderBanner();
+  await renderDoseLog();
+  checkDoseReminder();
 }
 
 async function deleteDoseLog(id){
@@ -1665,6 +1703,158 @@ async function openNewDoseLogForDate(dateKey){
   }
 }
 
+// ── Daily dose-log reminder ──────────────────────────────────
+function doseReminderStorageKey(){
+  return 'doseReminder_'+(currentUser?.id||'anon');
+}
+function getDoseReminderSettings(){
+  try{
+    const raw=localStorage.getItem(doseReminderStorageKey());
+    if(raw){
+      const parsed=JSON.parse(raw);
+      return{
+        enabled:!!parsed.enabled,
+        time:parsed.time||'20:00',
+        snoozeUntil:parsed.snoozeUntil||null,
+        lastNotifiedDate:parsed.lastNotifiedDate||null
+      };
+    }
+  }catch(e){}
+  return{enabled:false,time:'20:00',snoozeUntil:null,lastNotifiedDate:null};
+}
+function saveDoseReminderSettings(s){
+  localStorage.setItem(doseReminderStorageKey(),JSON.stringify(s));
+}
+function saveDoseReminderFromUI(){
+  const on=document.getElementById('dl_rem_on');
+  const timeEl=document.getElementById('dl_rem_time');
+  if(!on||!timeEl) return;
+  const s=getDoseReminderSettings();
+  s.enabled=!!on.checked;
+  s.time=timeEl.value||'20:00';
+  saveDoseReminderSettings(s);
+  if(s.enabled) showToast('✅ Reminder on · '+formatReminderTime(s.time));
+  else showToast('Reminder off');
+  checkDoseReminder();
+}
+function formatReminderTime(hhmm){
+  const[h,m]=(hhmm||'20:00').split(':').map(Number);
+  const d=new Date();d.setHours(h||20,m||0,0,0);
+  return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
+async function hasDoseLogToday(){
+  const today=localDateKey(new Date());
+  if((doseLogCache||[]).some(e=>entryDateKey(e)===today)) return true;
+  if(!currentUser) return false;
+  const start=new Date();start.setHours(0,0,0,0);
+  const end=new Date();end.setHours(23,59,59,999);
+  const{data}=await sb.from('dose_logs').select('id').eq('user_id',currentUser.id).gte('logged_at',start.toISOString()).lte('logged_at',end.toISOString()).limit(1);
+  return !!(data&&data.length);
+}
+function pastReminderTime(timeStr){
+  const[h,m]=(timeStr||'20:00').split(':').map(Number);
+  const now=new Date();
+  const due=new Date();due.setHours(h||20,m||0,0,0);
+  return now>=due;
+}
+async function shouldShowDoseReminder(){
+  if(!currentUser) return false;
+  const s=getDoseReminderSettings();
+  if(!s.enabled) return false;
+  if(s.snoozeUntil&&Date.now()<new Date(s.snoozeUntil).getTime()) return false;
+  if(!pastReminderTime(s.time)) return false;
+  if(await hasDoseLogToday()) return false;
+  return true;
+}
+function hideDoseReminderBanner(){
+  const el=document.getElementById('dose-reminder-banner');
+  if(el) el.classList.remove('show');
+}
+function showDoseReminderBanner(){
+  const el=document.getElementById('dose-reminder-banner');
+  if(el) el.classList.add('show');
+}
+async function maybeFireDoseNotification(){
+  if(typeof Notification==='undefined') return;
+  if(Notification.permission!=='granted') return;
+  const s=getDoseReminderSettings();
+  const today=localDateKey(new Date());
+  if(s.lastNotifiedDate===today) return;
+  try{
+    new Notification('Log today’s doses?',{
+      body:'Dose + Pain / No Pain — keeps your sweet spot accurate.',
+      tag:'dose-log-reminder'
+    });
+    s.lastNotifiedDate=today;
+    saveDoseReminderSettings(s);
+  }catch(e){}
+}
+async function checkDoseReminder(){
+  if(!currentUser){hideDoseReminderBanner();return;}
+  const show=await shouldShowDoseReminder();
+  if(show){
+    showDoseReminderBanner();
+    maybeFireDoseNotification();
+  }else{
+    hideDoseReminderBanner();
+  }
+}
+function startDoseReminderWatcher(){
+  stopDoseReminderWatcher();
+  checkDoseReminder();
+  doseReminderTimer=setInterval(checkDoseReminder,60*1000);
+  document.addEventListener('visibilitychange',onReminderVisibility);
+}
+function stopDoseReminderWatcher(){
+  if(doseReminderTimer){clearInterval(doseReminderTimer);doseReminderTimer=null;}
+  document.removeEventListener('visibilitychange',onReminderVisibility);
+}
+function onReminderVisibility(){
+  if(document.visibilityState==='visible') checkDoseReminder();
+}
+function snoozeDoseReminder(){
+  const s=getDoseReminderSettings();
+  s.snoozeUntil=new Date(Date.now()+60*60*1000).toISOString();
+  saveDoseReminderSettings(s);
+  hideDoseReminderBanner();
+  showToast('Snoozed for 1 hour');
+}
+function reminderLogNow(){
+  hideDoseReminderBanner();
+  jumpToTab('doselog');
+  openNewDoseLog();
+}
+async function enableDoseReminderNotifications(){
+  if(typeof Notification==='undefined'){
+    alert('Notifications are not supported in this browser.');
+    return;
+  }
+  const perm=await Notification.requestPermission();
+  if(perm==='granted'){
+    showToast('✅ Notifications enabled');
+    checkDoseReminder();
+  }else{
+    alert('Notification permission was not granted. You’ll still see the in-app reminder when the app is open.');
+  }
+}
+function doseReminderSettingsHtml(){
+  const s=getDoseReminderSettings();
+  const perm=typeof Notification==='undefined'?'unsupported':Notification.permission;
+  const permLabel=perm==='granted'?'On':perm==='denied'?'Blocked':perm==='unsupported'?'Unavailable':'Off';
+  return `<div class="reminder-card">
+    <div class="form-section" style="margin-bottom:8px">Daily reminder</div>
+    <div class="reminder-row">
+      <label class="reminder-toggle"><input type="checkbox" id="dl_rem_on" ${s.enabled?'checked':''} onchange="saveDoseReminderFromUI()"/> Remind me to log</label>
+      <input type="time" id="dl_rem_time" value="${esc(s.time)}" onchange="saveDoseReminderFromUI()" style="width:auto;min-width:110px"/>
+    </div>
+    <div class="reminder-row">
+      <div class="small">Phone alerts: <b>${permLabel}</b></div>
+      <button type="button" class="btn-edit" style="flex:0 0 auto;padding:8px 10px" onclick="enableDoseReminderNotifications()">Enable</button>
+    </div>
+    <div class="small" style="margin-top:8px">Shows an in-app banner after ${esc(formatReminderTime(s.time))} if today’s dose isn’t logged. Phone alerts work best while the app is open or recently used.</div>
+  </div>`;
+}
+
 async function renderDoseLog(){
   const{data,error}=await sb.from('dose_logs').select('*').eq('user_id',currentUser.id).order('logged_at',{ascending:false});
   if(error){
@@ -1747,6 +1937,7 @@ function paintDoseLog(){
     } else {
       html+=`<div class="card"><p>No dose/outcome entries yet.<br>Tap ➕ Add to log today's doses and whether you had pain.</p></div>`;
     }
+    html+=doseReminderSettingsHtml();
     document.getElementById('doselog').innerHTML=html;
     return;
   }
@@ -1797,6 +1988,7 @@ function paintDoseLog(){
       </div>`;
     });
   }
+  html+=doseReminderSettingsHtml();
   document.getElementById('doselog').innerHTML=html;
 }
 
