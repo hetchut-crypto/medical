@@ -166,6 +166,32 @@ textarea{min-height:70px;resize:vertical;}
 .cell-empty{background:white;color:#D1D5DB;}
 .filter-bar{background:white;border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:12px;}
 .titrating-tag{display:inline-block;background:#EDE9FE;color:var(--purple);padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;margin-left:4px;}
+.cal-wrap{background:white;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px;}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;}
+.cal-nav button{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;color:var(--navy);}
+.cal-nav h3{margin:0;font-size:15px;font-weight:800;color:var(--navy);}
+.cal-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cal-dow{text-align:center;font-size:10px;font-weight:700;color:#9CA3AF;padding:4px 0;}
+.cal-day{aspect-ratio:1;border-radius:10px;border:none;background:transparent;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px;color:#9CA3AF;}
+.cal-day:disabled{cursor:default;opacity:.35;}
+.cal-day.today{outline:2px solid var(--navy);outline-offset:0;}
+.cal-day.selected{box-shadow:inset 0 0 0 2px var(--navy);}
+.cal-day.nopain{background:#D1FAE5;color:var(--green);}
+.cal-day.pain{background:#FEE2E2;color:var(--red);}
+.cal-day.mixed{background:#FEF3C7;color:var(--gold);}
+.cal-day.missed{background:#F3F4F6;color:#6B7280;border:1.5px dashed #D1D5DB;}
+.cal-day-num{font-size:12px;line-height:1;}
+.cal-day-mark{font-size:9px;font-weight:800;line-height:1;}
+.cal-day-panel{margin-top:4px;}
+.cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;font-size:11px;color:#6B7280;}
+.cal-legend span{display:inline-flex;align-items:center;gap:4px;}
+.cal-dot{width:10px;height:10px;border-radius:3px;display:inline-block;}
+.cal-dot.nopain{background:#D1FAE5;border:1px solid #A7F3D0;}
+.cal-dot.pain{background:#FEE2E2;border:1px solid #FECACA;}
+.cal-dot.mixed{background:#FEF3C7;border:1px solid #FDE68A;}
+.cal-dot.missed{background:#F3F4F6;border:1.5px dashed #D1D5DB;}
+.cal-streak{background:#EEF2FF;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;}
 
 /* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;}
@@ -536,6 +562,8 @@ let doseFilterDose='';
 let doseMatrixAxes={x:'',y:''};
 let doseLegendOpen=false;
 let doseMedOptions=[];
+let doseCalCursor=null; // Date at first of viewed month
+let doseCalSelected=''; // YYYY-MM-DD
 
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
@@ -1425,6 +1453,10 @@ function filterDoseEntries(entries){
 function setDoseLogView(v){
   doseLogView=v;
   if(v==='grid'&&!window._doseLegendSeen){doseLegendOpen=true;window._doseLegendSeen=true;}
+  if(v==='calendar'&&!doseCalCursor){
+    const now=new Date();
+    doseCalCursor=new Date(now.getFullYear(),now.getMonth(),1);
+  }
   paintDoseLog();
 }
 function onDoseFilterMedChange(){
@@ -1441,6 +1473,196 @@ function onMatrixAxisChange(){
   doseMatrixAxes.x=document.getElementById('dl_axis_x').value;
   doseMatrixAxes.y=document.getElementById('dl_axis_y').value;
   paintDoseLog();
+}
+
+function localDateKey(dt){
+  const pad=n=>String(n).padStart(2,'0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+}
+
+function entryDateKey(e){
+  if(!e.logged_at) return '';
+  const dt=new Date(e.logged_at);
+  if(isNaN(dt)) return '';
+  return localDateKey(dt);
+}
+
+function shiftDoseCalMonth(delta){
+  if(!doseCalCursor){
+    const now=new Date();
+    doseCalCursor=new Date(now.getFullYear(),now.getMonth(),1);
+  }
+  doseCalCursor=new Date(doseCalCursor.getFullYear(),doseCalCursor.getMonth()+delta,1);
+  doseCalSelected='';
+  paintDoseLog();
+}
+
+function selectDoseCalDay(dateKey){
+  doseCalSelected=doseCalSelected===dateKey?'':dateKey;
+  paintDoseLog();
+}
+
+function buildDayOutcomeMap(entries){
+  const map={}; // dateKey -> {noPain, pain, entries[]}
+  entries.forEach(e=>{
+    const key=entryDateKey(e);
+    if(!key) return;
+    if(!map[key]) map[key]={noPain:0,pain:0,entries:[]};
+    map[key].entries.push(e);
+    if(e.outcome==='no_pain') map[key].noPain++;
+    else map[key].pain++;
+  });
+  return map;
+}
+
+function dayStatus(day){
+  if(!day||!day.entries.length) return 'empty';
+  if(day.pain&&day.noPain) return 'mixed';
+  if(day.pain) return 'pain';
+  return 'nopain';
+}
+
+function calcNoPainStreak(dayMap){
+  // Count consecutive no-pain days ending at today (or most recent logged day if today empty)
+  const today=new Date();
+  today.setHours(0,0,0,0);
+  let cursor=new Date(today);
+  // If today has no log, start from yesterday for streak of completed days
+  if(!dayMap[localDateKey(cursor)]){
+    cursor.setDate(cursor.getDate()-1);
+  }
+  let streak=0;
+  for(let i=0;i<366;i++){
+    const key=localDateKey(cursor);
+    const st=dayStatus(dayMap[key]);
+    if(st==='nopain'){streak++;cursor.setDate(cursor.getDate()-1);continue;}
+    break;
+  }
+  return streak;
+}
+
+function buildDoseCalendarHtml(entries){
+  if(!doseCalCursor){
+    const now=new Date();
+    doseCalCursor=new Date(now.getFullYear(),now.getMonth(),1);
+  }
+  const year=doseCalCursor.getFullYear();
+  const month=doseCalCursor.getMonth();
+  const monthLabel=doseCalCursor.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const dayMap=buildDayOutcomeMap(entries);
+  const firstDow=(new Date(year,month,1).getDay()+6)%7; // Mon=0
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const todayKey=localDateKey(new Date());
+  const monthStart=new Date(year,month,1);
+  monthStart.setHours(0,0,0,0);
+  const today=new Date();today.setHours(0,0,0,0);
+
+  // Missed = past days in this month (through today) with no log, only if user has any logs at all
+  let noPain=0,pain=0,mixed=0,missed=0;
+  for(let d=1;d<=daysInMonth;d++){
+    const dt=new Date(year,month,d);
+    dt.setHours(0,0,0,0);
+    const key=localDateKey(dt);
+    const st=dayStatus(dayMap[key]);
+    if(st==='nopain') noPain++;
+    else if(st==='pain') pain++;
+    else if(st==='mixed') mixed++;
+    else if(dt<=today&&entries.length) missed++;
+  }
+  const streak=calcNoPainStreak(dayMap);
+
+  let html=`<div class="cal-wrap">
+    <div class="cal-nav">
+      <button type="button" onclick="shiftDoseCalMonth(-1)" aria-label="Previous month">‹</button>
+      <h3>${esc(monthLabel)}</h3>
+      <button type="button" onclick="shiftDoseCalMonth(1)" aria-label="Next month">›</button>
+    </div>
+    <div class="cal-stats">
+      <span class="badge badge-green">No pain ${noPain}</span>
+      <span class="badge badge-red">Pain ${pain}</span>
+      ${mixed?`<span class="badge badge-gold">Mixed ${mixed}</span>`:''}
+      <span class="badge badge-purple">Missed ${missed}</span>
+    </div>
+    ${streak?`<div class="cal-streak">Current no-pain streak: ${streak} day${streak===1?'':'s'}</div>`:''}
+    <div class="cal-grid">
+      ${['M','T','W','T','F','S','S'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}`;
+
+  for(let i=0;i<firstDow;i++) html+=`<button type="button" class="cal-day" disabled></button>`;
+
+  for(let d=1;d<=daysInMonth;d++){
+    const dt=new Date(year,month,d);
+    dt.setHours(0,0,0,0);
+    const key=localDateKey(dt);
+    const st=dayStatus(dayMap[key]);
+    let cls='';
+    let mark='';
+    if(st==='nopain'){cls='nopain';mark='OK';}
+    else if(st==='pain'){cls='pain';mark='P';}
+    else if(st==='mixed'){cls='mixed';mark='~';}
+    else if(dt<=today&&entries.length){cls='missed';mark='·';}
+    if(key===todayKey) cls+=' today';
+    if(key===doseCalSelected) cls+=' selected';
+    const future=dt>today;
+    html+=`<button type="button" class="cal-day ${cls}" ${future&&st==='empty'?'disabled':''} onclick="selectDoseCalDay('${key}')" title="${key}">
+      <span class="cal-day-num">${d}</span>
+      ${mark?`<span class="cal-day-mark">${mark}</span>`:''}
+    </button>`;
+  }
+
+  html+=`</div>
+    <div class="cal-legend">
+      <span><i class="cal-dot nopain"></i> No pain</span>
+      <span><i class="cal-dot pain"></i> Pain</span>
+      <span><i class="cal-dot mixed"></i> Mixed</span>
+      <span><i class="cal-dot missed"></i> No log</span>
+    </div>
+  </div>`;
+
+  if(doseCalSelected){
+    const day=dayMap[doseCalSelected];
+    const label=fmtDate(doseCalSelected);
+    html+=`<div class="cal-day-panel">`;
+    if(!day||!day.entries.length){
+      html+=`<div class="card">
+        <div style="font-weight:700;margin-bottom:6px">${label}</div>
+        <p class="small" style="margin:0 0 10px">No dose log for this day.</p>
+        <button class="btn-edit" style="width:100%" onclick="openNewDoseLogForDate('${doseCalSelected}')">＋ Log this day</button>
+      </div>`;
+    } else {
+      html+=`<div class="form-section" style="margin-bottom:8px">${label} · ${day.entries.length} entr${day.entries.length===1?'y':'ies'}</div>`;
+      day.entries.forEach(e=>{
+        const{time}=parseLoggedAt(e.logged_at);
+        const outClass=e.outcome==='no_pain'?'outcome-nopain':'outcome-pain';
+        const outLabel=e.outcome==='no_pain'?'No Pain':'Pain';
+        html+=`<div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="small">${time||'—'}</div>
+            <span class="outcome-pill ${outClass}">${outLabel}</span>
+          </div>
+          ${formatDosesInline(e.doses)}
+          ${e.titrating_med?`<div style="margin-top:6px"><span class="titrating-tag">Testing: ${esc(e.titrating_med)}</span></div>`:''}
+          ${e.context_notes?`<div class="small" style="margin-top:6px">Context: ${esc(e.context_notes)}</div>`:''}
+          <div class="card-actions">
+            <button class="btn-edit" onclick="editDoseLog('${e.id}')">✏️ Edit</button>
+            <button class="btn-delete" onclick="deleteDoseLog('${e.id}')">🗑️ Delete</button>
+          </div>
+        </div>`;
+      });
+      html+=`<button class="btn-edit" style="width:100%;margin-bottom:12px" onclick="openNewDoseLogForDate('${doseCalSelected}')">＋ Add another log for this day</button>`;
+    }
+    html+=`</div>`;
+  } else {
+    html+=`<div class="card"><p class="small" style="margin:0">Tap a day to see details or add a log.</p></div>`;
+  }
+  return html;
+}
+
+async function openNewDoseLogForDate(dateKey){
+  await openNewDoseLog();
+  if(dateKey){
+    document.getElementById('dl_date').value=dateKey;
+    document.getElementById('dl_time').value='12:00';
+  }
 }
 
 async function renderDoseLog(){
@@ -1510,7 +1732,8 @@ function paintDoseLog(){
 
   html+=`<div class="view-toggle">
     <button class="view-btn ${doseLogView==='list'?'active':''}" onclick="setDoseLogView('list')">List</button>
-    <button class="view-btn ${doseLogView==='grid'?'active':''}" onclick="setDoseLogView('grid')">Grid / Matrix</button>
+    <button class="view-btn ${doseLogView==='calendar'?'active':''}" onclick="setDoseLogView('calendar')">Calendar</button>
+    <button class="view-btn ${doseLogView==='grid'?'active':''}" onclick="setDoseLogView('grid')">Grid</button>
     ${doseLogView==='grid'?`<button type="button" class="legend-help-btn ${doseLegendOpen?'open':''}" onclick="toggleDoseLegend()" aria-expanded="${doseLegendOpen?'true':'false'}" title="How to read this grid">${doseLegendOpen?'Hide legend':'? How to read'}</button>`:''}
   </div>`;
 
@@ -1519,12 +1742,18 @@ function paintDoseLog(){
   }
 
   if(!all.length){
-    html+=`<div class="card"><p>No dose/outcome entries yet.<br>Tap ➕ Add to log today's doses and whether you had pain.</p></div>`;
+    if(doseLogView==='calendar'){
+      html+=buildDoseCalendarHtml([]);
+    } else {
+      html+=`<div class="card"><p>No dose/outcome entries yet.<br>Tap ➕ Add to log today's doses and whether you had pain.</p></div>`;
+    }
     document.getElementById('doselog').innerHTML=html;
     return;
   }
 
-  if(doseLogView==='grid'){
+  if(doseLogView==='calendar'){
+    html+=buildDoseCalendarHtml(filtered);
+  } else if(doseLogView==='grid'){
     html+=`<div class="card">
       <div class="form-section">Matrix axes</div>
       <div class="grid2">
